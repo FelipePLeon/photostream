@@ -39,7 +39,6 @@
       </div>
 
       <div id="loginError" class="error-msg hidden"></div>
-
       <button class="btn-primary" id="loginBtn">Entrar</button>
     </div>
   </div>
@@ -53,13 +52,16 @@
       <button class="btn-logout" id="logoutBtn">Sair</button>
     </header>
 
-    <!-- Tabs -->
+    <!-- Tabs — 3 abas -->
     <nav class="tabs">
-      <button class="tab active" data-tab="upload" id="tabUpload">
+      <button class="tab active" id="tabUpload">
         <span class="tab-icon">⬆</span> Upload
       </button>
-      <button class="tab" data-tab="view" id="tabView">
+      <button class="tab" id="tabView">
         <span class="tab-icon">◻</span> Visualizar
+      </button>
+      <button class="tab" id="tabGallery">
+        <span class="tab-icon">⊞</span> Galeria
       </button>
     </nav>
 
@@ -73,8 +75,6 @@
           <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
           <button class="btn-primary" id="selectFileBtn">Escolher imagem</button>
         </div>
-
-        <!-- Preview antes do envio -->
         <div class="preview-wrap hidden" id="previewWrap">
           <img id="previewImg" src="" alt="Preview">
           <div class="preview-info">
@@ -87,8 +87,6 @@
           </div>
         </div>
       </div>
-
-      <!-- Feedback de status -->
       <div id="uploadStatus" class="upload-status hidden"></div>
     </section>
 
@@ -100,6 +98,7 @@
         <button class="btn-icon" id="refreshBtn" title="Atualizar">↺</button>
       </div>
 
+      <!-- Clicar na imagem abre o lightbox -->
       <div class="viewer-area" id="viewerArea">
         <div class="no-images hidden" id="noImages">
           <span class="empty-icon">🖼</span>
@@ -108,7 +107,7 @@
         </div>
 
         <div class="img-stage" id="imgStage">
-          <img id="currentImg" src="" alt="Imagem atual" class="viewer-img">
+          <img id="currentImg" src="" alt="Imagem atual" class="viewer-img" title="Toque para expandir">
           <div class="img-loading hidden" id="imgLoading">
             <div class="spinner"></div>
           </div>
@@ -117,17 +116,61 @@
         <div class="new-badge hidden" id="newBadge">✦ Nova imagem!</div>
       </div>
 
+      <!-- Navegação: Anterior | Baixar | Próxima -->
       <div class="nav-controls">
         <button class="btn-nav" id="prevBtn">← Anterior</button>
+        <button class="btn-nav btn-download" id="downloadBtn">↓ Baixar</button>
         <button class="btn-nav" id="nextBtn">Próxima →</button>
       </div>
 
-      <div class="polling-info" id="pollingInfo">
+      <div class="polling-info">
         <span class="dot pulse"></span> Atualizando automaticamente
       </div>
     </section>
 
+    <!-- ── ABA GALERIA ── -->
+    <section class="tab-content" id="panelGallery">
+
+      <div class="gallery-toolbar">
+        <span id="galleryCount" class="img-counter">— fotos</span>
+        <button class="btn-icon" id="galleryRefreshBtn" title="Atualizar">↺</button>
+      </div>
+
+      <div class="gallery-loading hidden" id="galleryLoading">
+        <div class="spinner"></div>
+      </div>
+
+      <div class="no-images hidden" id="galleryEmpty">
+        <span class="empty-icon">🖼</span>
+        <p>Nenhuma imagem ainda.</p>
+        <p class="empty-hint">Faça o upload na aba acima!</p>
+      </div>
+
+      <div class="gallery-grid" id="galleryGrid"></div>
+
+    </section>
+
   </div><!-- /appScreen -->
+
+  <!-- ── LIGHTBOX (TELA CHEIA) ── -->
+  <div class="lightbox hidden" id="lightbox" role="dialog" aria-modal="true">
+    <button class="lightbox-close" id="lightboxClose" aria-label="Fechar">✕</button>
+
+    <button class="lightbox-nav lightbox-prev" id="lightboxPrev" aria-label="Anterior">‹</button>
+    <button class="lightbox-nav lightbox-next" id="lightboxNext" aria-label="Próxima">›</button>
+
+    <div class="lightbox-inner" id="lightboxInner">
+      <img class="lightbox-img" id="lightboxImg" src="" alt="Imagem em tela cheia">
+      <div class="lightbox-spinner hidden" id="lightboxSpinner">
+        <div class="spinner"></div>
+      </div>
+    </div>
+
+    <div class="lightbox-footer">
+      <span id="lightboxCounter" class="lightbox-counter"></span>
+      <a class="lightbox-dl" id="lightboxDownload" target="_blank" rel="noopener">↓ Baixar</a>
+    </div>
+  </div>
 
   <script src="/app.js"></script>
 </body>
