@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PhotoStream — Ao Vivo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:wght@300;400&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Reset & base ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0a0a0f;
+      --bg2:     #111118;
+      --border:  #2a2a38;
+      --accent:  #5b6ef5;
+      --accent2: #8b9af8;
+      --success: #34c97a;
+      --error:   #f55b5b;
+      --text:    #e8e8f0;
+      --text2:   #8888a8;
+      --text3:   #555570;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', system-ui, sans-serif;
+      overflow: hidden;
+    }
+
+    /* ── Layout principal ─────────────────────────────────────────── */
+    #app {
+      width: 100vw;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    /* ── Header flutuante ─────────────────────────────────────────── */
+    #header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      background: linear-gradient(to bottom, rgba(10,10,15,.95) 0%, transparent 100%);
+      pointer-events: none; /* não bloqueia clique na imagem */
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .logo-icon {
+      font-size: 20px;
+      background: linear-gradient(135deg, #5b6ef5, #8b9af8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .logo-text {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 17px;
+      background: linear-gradient(135deg, var(--text) 40%, var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* badge "● Ao vivo" */
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-family: 'Syne', sans-serif;
+      font-weight: 600;
+      color: var(--text2);
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--border);
+      padding: 5px 11px;
+      border-radius: 20px;
+    }
+    .live-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; transform: scale(1); }
+      50%      { opacity: .5; transform: scale(.8); }
+    }
+
+    /* ── Área da imagem ───────────────────────────────────────────── */
+    #imgWrapper {
+      position: relative;
+      width: 100vw;
+      height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Duas imagens empilhadas para cross-fade sem flicker */
+    .layer {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 20px 48px;  /* respeita header e rodapé */
+    }
+    .layer img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      border-radius: 4px;
+      box-shadow: 0 8px 48px rgba(0,0,0,.7);
+      display: block;
+    }
+
+    /* layer A começa visível, layer B começa invisível */
+    #layerA { opacity: 1; transition: opacity .6s ease; }
+    #layerB { opacity: 0; transition: opacity .6s ease; }
+
+    /* ── Spinner central ──────────────────────────────────────────── */
+    #spinner {
+      position: absolute;
+      width: 36px; height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      z-index: 5;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #spinner.hidden { display: none; }
+
+    /* ── Rodapé flutuante ─────────────────────────────────────────── */
+    #footer {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 14px 20px;
+      background: linear-gradient(to top, rgba(10,10,15,.95) 0%, transparent 100%);
+      pointer-events: none;
+    }
+    #footerTimestamp {
+      font-size: 12px;
+      color: var(--text3);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 300;
+    }
+
+    /* ── Tela de erro ─────────────────────────────────────────────── */
+    #errorScreen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      text-align: center;
+      padding: 32px;
+    }
+    #errorScreen.visible { display: flex; }
+
+    .error-icon { font-size: 40px; opacity: .5; }
+    .error-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .error-msg { font-size: 14px; color: var(--text2); max-width: 320px; }
+    .error-token {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--text3);
+      background: rgba(255,255,255,.04);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-family: monospace;
+    }
+
+    /* ── Badge "Nova foto" ────────────────────────────────────────── */
+    #newBadge {
+      position: fixed;
+      top: 58px; right: 16px;
+      z-index: 20;
+      background: var(--accent);
+      color: #fff;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 12px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      box-shadow: 0 0 20px rgba(91,110,245,.5);
+      animation: badgePop .35s cubic-bezier(.34,1.56,.64,1);
+      pointer-events: none;
+    }
+    #newBadge.hidden { display: none; }
+    @keyframes badgePop {
+      from { transform: scale(0) translateY(-8px); opacity: 0; }
+      to   { transform: scale(1) translateY(0);    opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- Header -->
+  <div id="header">
+    <div class="logo">
+      <span class="logo-icon">◈</span>
+      <span class="logo-text">PhotoStream</span>
+    </div>
+    <div class="live-badge">
+      <span class="live-dot"></span>
+      Ao vivo
+    </div>
+  </div>
+
+  <!-- Badge nova foto -->
+  <div id="newBadge" class="hidden">✦ Nova foto!</div>
+
+  <!-- Spinner -->
+  <div id="spinner"></div>
+
+  <!-- Imagens com cross-fade (duas layers) -->
+  <div id="imgWrapper">
+    <div class="layer" id="layerA"><img id="imgA" src="" alt="" /></div>
+    <div class="layer" id="layerB"><img id="imgB" src="" alt="" /></div>
+  </div>
+
+  <!-- Tela de erro -->
+  <div id="errorScreen">
+    <div class="error-icon">⚠︎</div>
+    <div class="error-title" id="errorTitle">Acesso negado</div>
+    <div class="error-msg"  id="errorMsg">Token ausente ou inválido.</div>
+    <div class="error-token" id="errorToken"></div>
+  </div>
+
+  <!-- Rodapé -->
+  <div id="footer">
+    <span id="footerTimestamp"></span>
+  </div>
+
+</div>
+
+<script>
+  /* ═══════════════════════════════════════════════════════════════════
+     CONFIGURAÇÃO
+     Troque TOKEN pelo valor definido em PUBLIC_VIEW_TOKEN no server.js
+  ═══════════════════════════════════════════════════════════════════ */
+  const TOKEN           = new URLSearchParams(location.search).get('token') || '';
+  const POLL_INTERVAL   = 4000; // ms entre cada verificação
+  const FADE_DURATION   = 600;  // ms da transição (deve bater com o CSS)
+
+  /* ═══════════════════════════════════════════════════════════════════
+     ESTADO
+  ═══════════════════════════════════════════════════════════════════ */
+  let currentPublicId = null; // publicId da imagem visível no momento
+  let activeLayer     = 'A';  // qual layer está na frente
+  let badgeTimer      = null;
+  let polling         = null;
+
+  /* ═══════════════════════════════════════════════════════════════════
+     ELEMENTOS
+  ═══════════════════════════════════════════════════════════════════ */
+  const spinner      = document.getElementById('spinner');
+  const errorScreen  = document.getElementById('errorScreen');
+  const errorTitle   = document.getElementById('errorTitle');
+  const errorMsg     = document.getElementById('errorMsg');
+  const errorToken   = document.getElementById('errorToken');
+  const newBadge     = document.getElementById('newBadge');
+  const footerTs     = document.getElementById('footerTimestamp');
+  const layerA       = document.getElementById('layerA');
+  const layerB       = document.getElementById('layerB');
+  const imgA         = document.getElementById('imgA');
+  const imgB         = document.getElementById('imgB');
+
+  /* ═══════════════════════════════════════════════════════════════════
+     HELPERS
+  ═══════════════════════════════════════════════════════════════════ */
+  function showError(title, msg, hint = '') {
+    spinner.classList.add('hidden');
+    layerA.style.display = 'none';
+    layerB.style.display = 'none';
+    errorTitle.textContent = title;
+    errorMsg.textContent   = msg;
+    errorToken.textContent = hint;
+    errorToken.style.display = hint ? 'block' : 'none';
+    errorScreen.classList.add('visible');
+  }
+
+  function formatTimestamp(ms) {
+    if (!ms) return '';
+    const d   = new Date(ms);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `Última foto: ${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} às ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
+  function showBadge() {
+    newBadge.classList.remove('hidden');
+    if (badgeTimer) clearTimeout(badgeTimer);
+    badgeTimer = setTimeout(() => newBadge.classList.add('hidden'), 3500);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     CROSS-FADE
+     Carrega a nova URL no layer inativo e depois faz a troca.
+  ═══════════════════════════════════════════════════════════════════ */
+  function crossFadeTo(url, onReady) {
+    const incoming = activeLayer === 'A' ? imgB  : imgA;
+    const inLayer  = activeLayer === 'A' ? layerB : layerA;
+    const outLayer = activeLayer === 'A' ? layerA : layerB;
+
+    incoming.onload = () => {
+      // Traz o layer de trás para a frente com fade-in
+      inLayer.style.opacity  = '1';
+      outLayer.style.opacity = '0';
+      activeLayer = activeLayer === 'A' ? 'B' : 'A';
+      if (onReady) setTimeout(onReady, FADE_DURATION);
+    };
+    incoming.onerror = () => {
+      if (onReady) onReady();
+    };
+
+    // Garante que está por baixo antes de carregar
+    inLayer.style.opacity = '0';
+    incoming.src = url;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     BUSCA A IMAGEM MAIS RECENTE
+  ═══════════════════════════════════════════════════════════════════ */
+  async function fetchLatest() {
+    const res  = await fetch(`/api/public/latest?token=${encodeURIComponent(TOKEN)}`);
+    const data = await res.json();
+
+    if (!res.ok) {
+      // Para o polling e mostra o erro
+      clearInterval(polling);
+      if (res.status === 403) {
+        showError(
+          'Acesso negado',
+          'O token informado é inválido ou está ausente.',
+          `URL esperada: /public-view.html?token=SEU_TOKEN`
+        );
+      } else if (res.status === 404) {
+        showError(
+          'Nenhuma imagem',
+          'Ainda não há fotos enviadas no sistema.',
+          ''
+        );
+        // Retoma polling para quando a primeira foto chegar
+        startPolling();
+      } else {
+        showError('Erro', data.error || 'Erro desconhecido.', '');
+      }
+      return;
+    }
+
+    // Mesma imagem → não faz nada
+    if (data.publicId === currentPublicId) return;
+
+    const isFirstLoad = currentPublicId === null;
+    currentPublicId   = data.publicId;
+
+    spinner.classList.add('hidden');
+    errorScreen.classList.remove('visible');
+    layerA.style.display = '';
+    layerB.style.display = '';
+
+    footerTs.textContent = formatTimestamp(data.createdAt);
+
+    crossFadeTo(data.url, () => {
+      if (!isFirstLoad) showBadge();
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     POLLING
+  ═══════════════════════════════════════════════════════════════════ */
+  function startPolling() {
+    clearInterval(polling);
+    polling = setInterval(fetchLatest, POLL_INTERVAL);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     INIT
+  ═══════════════════════════════════════════════════════════════════ */
+  (function init() {
+    if (!TOKEN) {
+      showError(
+        'Token ausente',
+        'Acesse esta página com o token público na URL.',
+        'Exemplo: /public-view.html?token=meu-token-secreto-aqui'
+      );
+      return;
+    }
+
+    // Primeira carga imediata, depois polling
+    fetchLatest();
+    startPolling();
+  })();
+</script>
+</body>
+</html>

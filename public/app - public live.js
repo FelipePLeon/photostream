@@ -13,7 +13,6 @@ const state = {
 
 let pollingInterval = null;
 let newBadgeTimer   = null;
-let liveToastTimer  = null;
 
 /* ═══════════════════════════════════════════════════════════════════════════
    HELPERS
@@ -53,41 +52,6 @@ function triggerDownload(url, filename) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   LIVE PIN — envia imagem atual para a página pública
-═══════════════════════════════════════════════════════════════════════════ */
-async function pinToLive(index) {
-  const img = state.images[index];
-  if (!img) return;
-
-  try {
-    const r = await api('/api/public/pin', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        url:       img.url,
-        publicId:  img.publicId,
-        createdAt: img.createdAt,
-      }),
-    });
-    if (r.ok) showLiveToast();
-  } catch (_) {}
-}
-
-function showLiveToast() {
-  const toast = document.getElementById('liveToast');
-  toast.classList.remove('hidden');
-  toast.classList.add('toast-enter');
-  if (liveToastTimer) clearTimeout(liveToastTimer);
-  liveToastTimer = setTimeout(() => {
-    toast.classList.add('toast-leave');
-    setTimeout(() => {
-      toast.classList.add('hidden');
-      toast.classList.remove('toast-enter', 'toast-leave');
-    }, 400);
-  }, 2500);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -586,11 +550,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const lightbox = document.getElementById('lightbox');
 
   document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
-
-  // Clique na imagem do lightbox → pina ao vivo e exibe toast
-  document.getElementById('lightboxImg').addEventListener('click', () => {
-    pinToLive(state.lightboxIndex);
-  });
 
   lightbox.addEventListener('click', (e) => {
     if (e.target === lightbox) closeLightbox();

@@ -8,16 +8,10 @@ const { v2: cloudinary } = require('cloudinary');
 const path = require('path');
 
 // ─── Config ────────────────────────────────────────────────────────────────────
-//cloudinary.config({
-//  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-//  api_key:    process.env.CLOUDINARY_API_KEY,
-//  api_secret: process.env.CLOUDINARY_API_SECRET,
-//});
-
 cloudinary.config({
-  cloud_name: 'dozdvog49',
-  api_key:    '928844417637171',
-  api_secret: 's0bZkqdX_i-NxjtDF5Je0WC9rpY',
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
 const AUTH_USER = process.env.AUTH_USER || 'admin';
@@ -193,22 +187,6 @@ app.get('/api/download', requireAuth, async (req, res) => {
   }
 });
 
-// ─── Estado "ao vivo" — imagem pinada pelo operador ────────────────────────────
-// Quando o operador clica em uma imagem no lightbox, ela é salva aqui.
-// A rota GET /api/public/latest retorna esta imagem em vez da mais recente
-// do Cloudinary — enquanto houver um pin ativo.
-let pinnedImage = null; // { url, publicId, createdAt, pinnedAt }
-
-// POST /api/public/pin  — autenticada, seta a imagem ao vivo
-app.post('/api/public/pin', requireAuth, (req, res) => {
-  const { url, publicId, createdAt } = req.body;
-  if (!url || !publicId) {
-    return res.status(400).json({ error: 'url e publicId são obrigatórios' });
-  }
-  pinnedImage = { url, publicId, createdAt: createdAt || Date.now(), pinnedAt: Date.now() };
-  res.json({ success: true, pinnedAt: pinnedImage.pinnedAt });
-});
-
 // ─── Rota pública ───────────────────────────────────────────────────────────────
 // GET /api/public/latest?token=...
 // Não exige login. Retorna { url, publicId, createdAt } da imagem mais recente.
@@ -220,18 +198,6 @@ app.get('/api/public/latest', async (req, res) => {
   }
 
   try {
-    // Se houver imagem pinada pelo operador, retorna ela diretamente
-    if (pinnedImage) {
-      return res.json({
-        url:       pinnedImage.url,
-        publicId:  pinnedImage.publicId,
-        createdAt: pinnedImage.createdAt,
-        pinned:    true,
-        pinnedAt:  pinnedImage.pinnedAt,
-      });
-    }
-
-    // Fallback: imagem mais recente do Cloudinary
     const resources = await fetchAllImages();
 
     if (resources.length === 0) {
