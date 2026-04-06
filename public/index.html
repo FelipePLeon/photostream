@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PhotoStream</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       TELA DE LOGIN
+  ═══════════════════════════════════════════════════════════════ -->
+  <div id="loginScreen" class="screen">
+    <div class="login-orbs">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+    </div>
+
+    <div class="login-card">
+      <div class="login-logo">
+        <span class="logo-icon">◈</span>
+        <span class="logo-text">PhotoStream</span>
+      </div>
+      <p class="login-subtitle">Entre para acessar seu stream de fotos</p>
+
+      <div class="form-group">
+        <label for="loginUser">Usuário</label>
+        <input type="text" id="loginUser" placeholder="seu usuário" autocomplete="username" />
+      </div>
+
+      <div class="form-group">
+        <label for="loginPass">Senha</label>
+        <div class="input-wrap">
+          <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password" />
+          <button class="btn-eye" id="togglePass" type="button" aria-label="Mostrar/ocultar senha">
+            <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <p id="loginError" class="login-error hidden"></p>
+
+      <button id="loginBtn" class="btn-primary btn-full">
+        <span id="loginBtnText">Entrar</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       TELA DO APP
+  ═══════════════════════════════════════════════════════════════ -->
+  <div id="appScreen" class="screen hidden">
+
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-logo">
+        <span class="logo-icon">◈</span>
+        <span class="logo-text">PhotoStream</span>
+      </div>
+      <button id="logoutBtn" class="btn-logout">Sair</button>
+    </header>
+
+    <!-- Tabs -->
+    <nav class="app-tabs">
+      <button class="tab-btn active" data-tab="upload">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+        Upload
+      </button>
+      <button class="tab-btn" data-tab="view">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        Visualizar
+      </button>
+      <button class="tab-btn" data-tab="gallery">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Galeria
+      </button>
+    </nav>
+
+    <!-- Main content -->
+    <main class="app-main">
+
+      <!-- ── PAINEL: UPLOAD ─────────────────────────────────────── -->
+      <section id="panelUpload" class="panel active">
+
+        <div id="uploadZone" class="upload-zone">
+
+          <!-- Estado inicial -->
+          <div id="uploadInitial" class="upload-initial">
+            <div class="upload-icon">📷</div>
+            <p class="upload-title">Enviar foto</p>
+            <p class="upload-hint">Arraste uma imagem ou clique para selecionar</p>
+            <p class="upload-formats">JPEG · PNG · WebP · GIF · até 10 MB</p>
+            <button id="chooseFileBtn" class="btn-primary" type="button">Escolher imagem</button>
+          </div>
+
+          <!-- Preview -->
+          <div id="uploadPreview" class="upload-preview hidden">
+            <img id="previewImg" src="" alt="Preview" />
+            <div class="preview-info">
+              <span id="previewName" class="preview-name"></span>
+              <span id="previewSize" class="preview-size"></span>
+            </div>
+            <div class="preview-actions">
+              <button id="cancelUploadBtn" class="btn-secondary" type="button">✕ Cancelar</button>
+              <button id="sendUploadBtn" class="btn-primary" type="button">↑ Enviar</button>
+            </div>
+          </div>
+        </div>
+
+        <p id="uploadFeedback" class="upload-feedback hidden"></p>
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/gif" hidden />
+      </section>
+
+      <!-- ── PAINEL: VISUALIZAR ─────────────────────────────────── -->
+      <section id="panelView" class="panel hidden">
+
+        <div class="view-toolbar">
+          <span id="viewCounter" class="view-counter">— / —</span>
+          <button id="viewRefreshBtn" class="btn-icon" title="Atualizar">↺</button>
+        </div>
+
+        <div id="viewArea" class="view-area">
+          <div id="viewEmpty" class="empty-msg hidden">Nenhuma imagem ainda.</div>
+          <div id="viewSpinner" class="spinner hidden"></div>
+          <div id="viewImgWrap" class="view-img-wrap hidden">
+            <div id="viewImgSpinner" class="spinner img-spinner hidden"></div>
+            <img id="viewImg" src="" alt="Imagem atual" />
+            <div id="newBadge" class="new-badge hidden">✦ Nova imagem!</div>
+          </div>
+        </div>
+
+        <div class="view-nav">
+          <button id="viewPrev" class="btn-nav" disabled>← Anterior</button>
+          <button id="viewDownload" class="btn-download">↓ Baixar</button>
+          <button id="viewNext" class="btn-nav" disabled>Próxima →</button>
+        </div>
+
+        <div class="view-footer">
+          <span class="live-dot"></span>
+          <span>Atualizando automaticamente</span>
+        </div>
+      </section>
+
+      <!-- ── PAINEL: GALERIA ────────────────────────────────────── -->
+      <section id="panelGallery" class="panel hidden">
+
+        <div class="gallery-toolbar">
+          <span id="galleryCount" class="gallery-count">— fotos</span>
+          <button id="galleryRefreshBtn" class="btn-icon" title="Atualizar">↺</button>
+        </div>
+
+        <div id="gallerySpinner" class="spinner hidden"></div>
+        <div id="galleryEmpty" class="empty-msg hidden">Nenhuma imagem ainda.</div>
+        <div id="galleryGrid" class="gallery-grid"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       LIGHTBOX
+  ═══════════════════════════════════════════════════════════════ -->
+  <div id="lightbox" class="lightbox hidden">
+    <button id="lightboxClose" class="lightbox-close" aria-label="Fechar">✕</button>
+
+    <button id="lightboxPrev" class="lightbox-nav lightbox-prev" aria-label="Anterior" disabled>‹</button>
+    <button id="lightboxNext" class="lightbox-nav lightbox-next" aria-label="Próxima"  disabled>›</button>
+
+    <div class="lightbox-body">
+      <div id="lightboxSpinner" class="spinner lightbox-spinner hidden"></div>
+      <img id="lightboxImg" src="" alt="Foto ampliada" />
+    </div>
+
+    <div class="lightbox-footer">
+      <span id="lightboxCounter">— / —</span>
+      <a id="lightboxDownload" href="#" class="lightbox-download-link">↓ Baixar</a>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
