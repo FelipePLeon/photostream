@@ -8,17 +8,12 @@ const { v2: cloudinary } = require('cloudinary');
 const path = require('path');
 
 // ─── Config ────────────────────────────────────────────────────────────────────
-//cloudinary.config({
-//  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-//  api_key:    process.env.CLOUDINARY_API_KEY,
-//  api_secret: process.env.CLOUDINARY_API_SECRET,
-//});
-
 cloudinary.config({
-  cloud_name: 'dozdvog49',
-  api_key:    '928844417637171',
-  api_secret: 's0bZkqdX_i-NxjtDF5Je0WC9rpY',
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+
 
 const AUTH_USER = process.env.AUTH_USER || 'admin';
 const AUTH_PASS = process.env.AUTH_PASS || 'admin';
