@@ -6,6 +6,8 @@ const crypto  = require('crypto');
 const { Readable } = require('stream');
 const { v2: cloudinary } = require('cloudinary');
 const path = require('path');
+// 🔐 TOKEN DE ACESSO PÚBLICO
+const PUBLIC_TOKEN = 'photostream';
 
 // ─── Config ────────────────────────────────────────────────────────────────────
 cloudinary.config({
@@ -19,7 +21,8 @@ const AUTH_PASS = process.env.AUTH_PASS || 'admin';
 const PORT      = process.env.PORT      || 3000;
 
 // ─── In-memory sessions ─────────────────────────────────────────────────────────
-const sessions  = new Map();
+// Map<token, { createdAt: number }>
+const sessions = new Map();
 const SESSION_TTL = 24 * 60 * 60 * 1000; // 24 h
 
 function createToken() {
@@ -39,7 +42,7 @@ function isValidToken(token) {
 // ─── Multer (memory only) ───────────────────────────────────────────────────────
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
 });
 
 // ─── Auth middleware ─────────────────────────────────────────────────────────────
@@ -60,32 +63,6 @@ function uploadToCloudinary(buffer, options) {
     });
     Readable.from(buffer).pipe(stream);
   });
-}
-
-// ─── Helper: busca todas as imagens sem depender do índice de busca do Cloudinary
-// cloudinary.search tem delay de indexação de até ~15s após o upload.
-// cloudinary.api.resources() consulta o storage diretamente, sem esse delay.
-async function fetchAllImages() {
-  let all        = [];
-  let nextCursor = undefined;
-
-  do {
-    const opts = {
-      type:        'upload',
-      prefix:      'photostream/',
-      max_results: 500,
-      direction:   -1, // desc por created_at
-    };
-    if (nextCursor) opts.next_cursor = nextCursor;
-
-    const batch = await cloudinary.api.resources(opts);
-    all         = all.concat(batch.resources || []);
-    nextCursor  = batch.next_cursor;
-  } while (nextCursor);
-
-  // garantir ordenação desc
-  all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  return all;
 }
 
 // ─── App ────────────────────────────────────────────────────────────────────────
@@ -119,12 +96,18 @@ app.get('/api/check', requireAuth, (req, res) => {
 // GET /api/images
 app.get('/api/images', requireAuth, async (req, res) => {
   try {
-    const resources = await fetchAllImages();
-    const images    = resources.map((r) => ({
+    const result = await cloudinary.search
+      .expression('folder:photostream/*')
+      .sort_by('created_at', 'desc')
+      .max_results(200)
+      .execute();
+
+    const images = (result.resources || []).map((r) => ({
       url:       r.secure_url,
       publicId:  r.public_id,
       createdAt: new Date(r.created_at).getTime(),
     }));
+
     res.json(images);
   } catch (err) {
     console.error('GET /api/images error:', err);
@@ -132,53 +115,24 @@ app.get('/api/images', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/images/latest — polling endpoint (sem cache de índice)
+// GET /api/images/latest  — lightweight polling endpoint
 app.get('/api/images/latest', requireAuth, async (req, res) => {
   try {
-    const resources = await fetchAllImages();
-    const latest    = resources.length > 0
-      ? new Date(resources[0].created_at).getTime()
+    const result = await cloudinary.search
+      .expression('folder:photostream/*')
+      .sort_by('created_at', 'desc')
+      .max_results(1)
+      .execute();
+
+    const count   = result.total_count || 0;
+    const latest  = result.resources && result.resources.length > 0
+      ? new Date(result.resources[0].created_at).getTime()
       : 0;
-    res.json({ latest, count: resources.length });
+
+    res.json({ latest, count });
   } catch (err) {
     console.error('GET /api/images/latest error:', err);
     res.status(500).json({ error: 'Erro ao verificar imagens' });
-  }
-});
-
-// GET /api/download?url=... — proxy para forçar nome correto no download (cross-origin)
-app.get('/api/download', requireAuth, async (req, res) => {
-  const { url, filename } = req.query;
-  if (!url) return res.status(400).json({ error: 'url é obrigatório' });
-
-  // Só permite URLs do Cloudinary
-  let parsed;
-  try { parsed = new URL(url); } catch (_) {
-    return res.status(400).json({ error: 'URL inválida' });
-  }
-  if (!parsed.hostname.endsWith('cloudinary.com')) {
-    return res.status(403).json({ error: 'Domínio não permitido' });
-  }
-
-  try {
-    const https    = require('https');
-    const safeFile = (filename || 'PhotoStream.jpg').replace(/[^a-zA-Z0-9._-]/g, '_');
-
-    res.setHeader('Content-Disposition', `attachment; filename="${safeFile}"`);
-    res.setHeader('Cache-Control', 'no-store');
-
-    https.get(url, (upstream) => {
-      const ct = upstream.headers['content-type'] || 'image/jpeg';
-      res.setHeader('Content-Type', ct);
-      upstream.pipe(res);
-      upstream.on('error', (e) => { console.error('proxy stream error:', e); res.end(); });
-    }).on('error', (e) => {
-      console.error('proxy request error:', e);
-      res.status(502).json({ error: 'Erro ao buscar imagem' });
-    });
-  } catch (err) {
-    console.error('GET /api/download error:', err);
-    res.status(500).json({ error: 'Erro interno' });
   }
 });
 
@@ -189,6 +143,7 @@ app.post('/api/upload', requireAuth, upload.single('image'), async (req, res) =>
   if (!req.file) {
     return res.status(400).json({ success: false, message: 'Nenhum arquivo enviado.' });
   }
+
   if (!ALLOWED_TYPES.includes(req.file.mimetype)) {
     return res.status(400).json({ success: false, message: 'Tipo de arquivo não permitido.' });
   }
@@ -213,6 +168,96 @@ app.post('/api/upload', requireAuth, upload.single('image'), async (req, res) =>
     res.status(500).json({ success: false, message: 'Erro ao fazer upload da imagem.' });
   }
 });
+
+// GET /public/latest — página pública com auto-refresh CHATGPT
+app.get('/public/latest', async (req, res) => {
+  try {
+    const result = await cloudinary.search
+      .expression('folder:photostream/*')
+      .sort_by('created_at', 'desc')
+      .max_results(1)
+      .execute();
+
+    const image = result.resources && result.resources.length > 0
+      ? result.resources[0].secure_url
+      : null;
+
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Live Photo</title>
+        <style>
+          body {
+            margin: 0;
+            background: black;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+          }
+          img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+          }
+        </style>
+      </head>
+      <body>
+        ${image ? `<img id="img" src="${image}" />` : `<p style="color:white;">Sem imagem</p>`}
+
+        <script>
+          let lastUrl = "${image || ''}";
+
+          async function checkUpdate() {
+            try {
+              const r = await fetch('/public/latest-json');
+              const data = await r.json();
+
+              if (data.url && data.url !== lastUrl) {
+                document.getElementById('img').src = data.url;
+                lastUrl = data.url;
+              }
+            } catch (e) {}
+          }
+
+          setInterval(checkUpdate, 3000);
+        </script>
+      </body>
+      </html>
+    `);
+  } catch (err) {
+    res.status(500).send('Erro ao carregar imagem');
+  }
+});
+
+// GET /public/latest-json — retorna só a imagem mais recente CHATGPT
+app.get('/public/latest-json', async (req, res) => {
+
+ // 🔐 VALIDAÇÃO DO TOKEN (coloque AQUI)
+  if (req.query.token !== PUBLIC_TOKEN) {
+    return res.status(403).send('Acesso negado');
+  }
+
+  try {
+    const result = await cloudinary.search
+      .expression('folder:photostream/*')
+      .sort_by('created_at', 'desc')
+      .max_results(1)
+      .execute();
+
+    const image = result.resources && result.resources.length > 0
+      ? result.resources[0].secure_url
+      : null;
+
+    res.json({ url: image });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao buscar imagem' });
+  }
+});
+
+
 
 // ─── Start ───────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
