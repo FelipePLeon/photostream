@@ -8,7 +8,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:wght@300;400&display=swap" rel="stylesheet" />
   <style>
-    /* ── Reset & base ─────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
@@ -32,193 +31,178 @@
       overflow: hidden;
     }
 
-    /* ── Layout principal ─────────────────────────────────────────── */
+    /* ── Layout ────────────────────────────────────────────────────── */
     #app {
-      width: 100vw;
-      height: 100dvh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
+      width: 100vw; height: 100dvh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
       position: relative;
     }
 
-    /* ── Header flutuante ─────────────────────────────────────────── */
+    /* ── Header ────────────────────────────────────────────────────── */
     #header {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      z-index: 10;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+      position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: space-between;
       padding: 14px 20px;
       background: linear-gradient(to bottom, rgba(10,10,15,.95) 0%, transparent 100%);
-      pointer-events: none; /* não bloqueia clique na imagem */
+      pointer-events: none;
     }
-
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+    .logo { display: flex; align-items: center; gap: 8px; }
     .logo-icon {
       font-size: 20px;
       background: linear-gradient(135deg, #5b6ef5, #8b9af8);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
     .logo-text {
-      font-family: 'Syne', sans-serif;
-      font-weight: 700;
-      font-size: 17px;
+      font-family: 'Syne', sans-serif; font-weight: 700; font-size: 17px;
       background: linear-gradient(135deg, var(--text) 40%, var(--accent2));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
-
-    /* badge "● Ao vivo" */
     .live-badge {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      font-family: 'Syne', sans-serif;
-      font-weight: 600;
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; font-family: 'Syne', sans-serif; font-weight: 600;
       color: var(--text2);
-      background: rgba(255,255,255,.06);
-      border: 1px solid var(--border);
-      padding: 5px 11px;
-      border-radius: 20px;
+      background: rgba(255,255,255,.06); border: 1px solid var(--border);
+      padding: 5px 11px; border-radius: 20px;
+      pointer-events: auto;
     }
     .live-dot {
-      width: 7px; height: 7px;
-      border-radius: 50%;
+      width: 7px; height: 7px; border-radius: 50%;
       background: var(--success);
-      animation: pulse 2s ease-in-out infinite;
-      flex-shrink: 0;
+      animation: pulse 2s ease-in-out infinite; flex-shrink: 0;
     }
     @keyframes pulse {
-      0%,100% { opacity: 1; transform: scale(1); }
-      50%      { opacity: .5; transform: scale(.8); }
+      0%,100% { opacity:1; transform:scale(1); }
+      50%      { opacity:.5; transform:scale(.8); }
     }
 
-    /* ── Área da imagem ───────────────────────────────────────────── */
+    /* ── Imagem / layers ───────────────────────────────────────────── */
     #imgWrapper {
-      position: relative;
-      width: 100vw;
-      height: 100dvh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      position: relative; width: 100vw; height: 100dvh;
+      display: flex; align-items: center; justify-content: center;
     }
-
-    /* Duas imagens empilhadas para cross-fade sem flicker */
     .layer {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 60px 20px 48px;  /* respeita header e rodapé */
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      padding: 60px 20px 48px;
     }
     .layer img {
-      max-width: 100%;
-      max-height: 100%;
-      object-fit: contain;
-      border-radius: 4px;
-      box-shadow: 0 8px 48px rgba(0,0,0,.7);
-      display: block;
+      max-width: 100%; max-height: 100%;
+      object-fit: contain; border-radius: 4px;
+      box-shadow: 0 8px 48px rgba(0,0,0,.7); display: block;
     }
-
-    /* layer A começa visível, layer B começa invisível */
     #layerA { opacity: 1; transition: opacity .6s ease; }
     #layerB { opacity: 0; transition: opacity .6s ease; }
 
-    /* ── Spinner central ──────────────────────────────────────────── */
+    /* ── Spinner ───────────────────────────────────────────────────── */
     #spinner {
-      position: absolute;
-      width: 36px; height: 36px;
-      border: 3px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin .7s linear infinite;
-      z-index: 5;
+      position: absolute; width: 36px; height: 36px;
+      border: 3px solid var(--border); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin .7s linear infinite; z-index: 5;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     #spinner.hidden { display: none; }
 
-    /* ── Rodapé flutuante ─────────────────────────────────────────── */
+    /* ── Rodapé ────────────────────────────────────────────────────── */
     #footer {
-      position: fixed;
-      bottom: 0; left: 0; right: 0;
-      z-index: 10;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: center; gap: 16px;
       padding: 14px 20px;
       background: linear-gradient(to top, rgba(10,10,15,.95) 0%, transparent 100%);
       pointer-events: none;
     }
-    #footerTimestamp {
-      font-size: 12px;
-      color: var(--text3);
-      font-family: 'DM Sans', sans-serif;
-      font-weight: 300;
-    }
+    #footerTimestamp { font-size: 12px; color: var(--text3); font-weight: 300; }
 
-    /* ── Tela de erro ─────────────────────────────────────────────── */
+    /* ── Tela de erro ──────────────────────────────────────────────── */
     #errorScreen {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      text-align: center;
-      padding: 32px;
+      display: none; flex-direction: column; align-items: center;
+      justify-content: center; gap: 12px; text-align: center; padding: 32px;
     }
     #errorScreen.visible { display: flex; }
-
     .error-icon { font-size: 40px; opacity: .5; }
-    .error-title {
-      font-family: 'Syne', sans-serif;
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--text);
-    }
-    .error-msg { font-size: 14px; color: var(--text2); max-width: 320px; }
+    .error-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; }
+    .error-msg  { font-size: 14px; color: var(--text2); max-width: 320px; }
     .error-token {
-      margin-top: 8px;
-      font-size: 12px;
-      color: var(--text3);
-      background: rgba(255,255,255,.04);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 16px;
-      font-family: monospace;
+      margin-top: 8px; font-size: 12px; color: var(--text3);
+      background: rgba(255,255,255,.04); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 16px; font-family: monospace;
     }
 
-    /* ── Badge "Nova foto" ────────────────────────────────────────── */
+    /* ── Badge "Nova foto" ─────────────────────────────────────────── */
     #newBadge {
-      position: fixed;
-      top: 58px; right: 16px;
-      z-index: 20;
-      background: var(--accent);
-      color: #fff;
-      font-family: 'Syne', sans-serif;
-      font-weight: 700;
-      font-size: 12px;
-      padding: 6px 14px;
-      border-radius: 20px;
+      position: fixed; top: 58px; right: 16px; z-index: 20;
+      background: var(--accent); color: #fff;
+      font-family: 'Syne', sans-serif; font-weight: 700; font-size: 12px;
+      padding: 6px 14px; border-radius: 20px;
       box-shadow: 0 0 20px rgba(91,110,245,.5);
       animation: badgePop .35s cubic-bezier(.34,1.56,.64,1);
       pointer-events: none;
     }
     #newBadge.hidden { display: none; }
     @keyframes badgePop {
-      from { transform: scale(0) translateY(-8px); opacity: 0; }
-      to   { transform: scale(1) translateY(0);    opacity: 1; }
+      from { transform: scale(0) translateY(-8px); opacity:0; }
+      to   { transform: scale(1) translateY(0);    opacity:1; }
     }
+
+    /* ── Overlay de ativação de áudio ──────────────────────────────── */
+    /*
+      Exibido apenas antes do primeiro clique.
+      Depois que o usuário clica, some para sempre nessa aba.
+    */
+    #audioGate {
+      position: fixed; inset: 0; z-index: 100;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 20px;
+      background: rgba(10,10,15,.96);
+      backdrop-filter: blur(8px);
+    }
+    #audioGate.gone { display: none; }
+
+    .gate-icon { font-size: 52px; line-height: 1; }
+
+    .gate-title {
+      font-family: 'Syne', sans-serif; font-weight: 700; font-size: 20px;
+      color: var(--text); text-align: center; max-width: 280px;
+    }
+    .gate-sub {
+      font-size: 13px; color: var(--text2);
+      text-align: center; max-width: 260px; line-height: 1.6;
+    }
+
+    #activateBtn {
+      display: flex; align-items: center; gap: 10px;
+      font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px;
+      color: #fff; background: var(--accent);
+      border: none; border-radius: 14px; padding: 14px 32px;
+      cursor: pointer;
+      box-shadow: 0 0 28px rgba(91,110,245,.45);
+      transition: opacity .15s, transform .1s;
+    }
+    #activateBtn:hover  { opacity: .88; }
+    #activateBtn:active { transform: scale(.97); }
+
+    .btn-bell { font-size: 20px; }
+
+    /* nota explicativa discreta */
+    .gate-note {
+      font-size: 11px; color: var(--text3);
+      text-align: center; max-width: 240px; line-height: 1.5;
+    }
+
+    /* ── Indicador de som (canto inferior esquerdo) ────────────────── */
+    #soundIndicator {
+      position: fixed; bottom: 14px; left: 16px; z-index: 10;
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; font-family: 'Syne', sans-serif; font-weight: 600;
+      color: var(--text3);
+      background: rgba(255,255,255,.04); border: 1px solid var(--border);
+      padding: 5px 10px; border-radius: 20px;
+      cursor: pointer; transition: color .15s, border-color .15s;
+      pointer-events: auto;
+    }
+    #soundIndicator:hover { color: var(--text2); border-color: var(--text3); }
+    #soundIndicator.muted .si-icon::after { content: ' ✕'; font-size: 9px; color: var(--error); }
+    .si-icon { font-size: 13px; }
   </style>
 </head>
 <body>
@@ -243,7 +227,7 @@
   <!-- Spinner -->
   <div id="spinner"></div>
 
-  <!-- Imagens com cross-fade (duas layers) -->
+  <!-- Imagens cross-fade -->
   <div id="imgWrapper">
     <div class="layer" id="layerA"><img id="imgA" src="" alt="" /></div>
     <div class="layer" id="layerB"><img id="imgB" src="" alt="" /></div>
@@ -253,7 +237,7 @@
   <div id="errorScreen">
     <div class="error-icon">⚠︎</div>
     <div class="error-title" id="errorTitle">Acesso negado</div>
-    <div class="error-msg"  id="errorMsg">Token ausente ou inválido.</div>
+    <div class="error-msg"   id="errorMsg">Token ausente ou inválido.</div>
     <div class="error-token" id="errorToken"></div>
   </div>
 
@@ -262,39 +246,185 @@
     <span id="footerTimestamp"></span>
   </div>
 
+  <!-- Indicador de som (visível após ativação) -->
+  <div id="soundIndicator" style="display:none">
+    <span class="si-icon">🔔</span>
+    <span id="soundLabel">Som ativo</span>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     OVERLAY DE ATIVAÇÃO
+     Exibido na primeira abertura. Some após o clique e nunca mais volta.
+═══════════════════════════════════════════════════════════════════════ -->
+<div id="audioGate">
+  <div class="gate-icon">🔔</div>
+  <div class="gate-title">Ativar alertas sonoros</div>
+  <div class="gate-sub">
+    Toque aqui uma vez para ativar a campainha.<br>
+    O som tocará automaticamente mesmo com a janela em segundo plano.
+  </div>
+  <button id="activateBtn">
+    <span class="btn-bell">🔔</span>
+    Ativar e abrir
+  </button>
+  <div class="gate-note">
+    Esta etapa é obrigatória pelo navegador.<br>
+    Após clicar, não é necessário repetir.
+  </div>
 </div>
 
 <script>
   /* ═══════════════════════════════════════════════════════════════════
      CONFIGURAÇÃO
-     Troque TOKEN pelo valor definido em PUBLIC_VIEW_TOKEN no server.js
   ═══════════════════════════════════════════════════════════════════ */
-  const TOKEN           = new URLSearchParams(location.search).get('token') || '';
-  const POLL_INTERVAL   = 4000; // ms entre cada verificação
-  const FADE_DURATION   = 600;  // ms da transição (deve bater com o CSS)
+  const TOKEN         = new URLSearchParams(location.search).get('token') || '';
+  const POLL_INTERVAL = 4000;  // ms
+  const FADE_DURATION = 600;   // ms (deve bater com o CSS)
 
   /* ═══════════════════════════════════════════════════════════════════
      ESTADO
   ═══════════════════════════════════════════════════════════════════ */
-  let currentPublicId = null; // publicId da imagem visível no momento
-  let activeLayer     = 'A';  // qual layer está na frente
+  let currentPublicId = null;
+  let activeLayer     = 'A';
   let badgeTimer      = null;
   let polling         = null;
+  let audioCtx        = null;   // Web Audio context (criado no primeiro clique)
+  let soundEnabled    = true;   // pode ser silenciado pelo indicador
 
   /* ═══════════════════════════════════════════════════════════════════
      ELEMENTOS
   ═══════════════════════════════════════════════════════════════════ */
-  const spinner      = document.getElementById('spinner');
-  const errorScreen  = document.getElementById('errorScreen');
-  const errorTitle   = document.getElementById('errorTitle');
-  const errorMsg     = document.getElementById('errorMsg');
-  const errorToken   = document.getElementById('errorToken');
-  const newBadge     = document.getElementById('newBadge');
-  const footerTs     = document.getElementById('footerTimestamp');
-  const layerA       = document.getElementById('layerA');
-  const layerB       = document.getElementById('layerB');
-  const imgA         = document.getElementById('imgA');
-  const imgB         = document.getElementById('imgB');
+  const gate          = document.getElementById('audioGate');
+  const activateBtn   = document.getElementById('activateBtn');
+  const spinner       = document.getElementById('spinner');
+  const errorScreen   = document.getElementById('errorScreen');
+  const errorTitle    = document.getElementById('errorTitle');
+  const errorMsg      = document.getElementById('errorMsg');
+  const errorToken    = document.getElementById('errorToken');
+  const newBadge      = document.getElementById('newBadge');
+  const footerTs      = document.getElementById('footerTimestamp');
+  const layerA        = document.getElementById('layerA');
+  const layerB        = document.getElementById('layerB');
+  const imgA          = document.getElementById('imgA');
+  const imgB          = document.getElementById('imgB');
+  const soundIndicator = document.getElementById('soundIndicator');
+  const soundLabel     = document.getElementById('soundLabel');
+
+  /* ═══════════════════════════════════════════════════════════════════
+     ÁUDIO — Web Audio API
+     Gera uma campainha "ding-dong" sinteticamente, sem arquivo externo.
+     Funciona em segundo plano porque o AudioContext roda na thread de áudio
+     do navegador, independente da visibilidade da aba.
+  ═══════════════════════════════════════════════════════════════════ */
+
+  /**
+   * Cria (ou reutiliza) o AudioContext.
+   * DEVE ser chamada dentro de um handler de evento de usuário (click).
+   * Depois disso o contexto permanece desbloqueado para a aba inteira.
+   */
+  function ensureAudioContext() {
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+
+  /**
+   * Toca um único sino sintético.
+   * @param {number} freq       - frequência fundamental em Hz
+   * @param {number} startTime  - quando começar (audioCtx.currentTime + offset)
+   * @param {number} duration   - duração em segundos
+   * @param {number} gainPeak   - volume de pico (0–1)
+   */
+  function playBell(freq, startTime, duration, gainPeak) {
+    if (!audioCtx || !soundEnabled) return;
+
+    // Oscilador principal — senoidal com leve detune para soar mais natural
+    const osc1 = audioCtx.createOscillator();
+    osc1.type      = 'sine';
+    osc1.frequency.setValueAtTime(freq, startTime);
+    // Pequeno vibrato leve
+    osc1.frequency.linearRampToValueAtTime(freq * 0.998, startTime + duration);
+
+    // Segundo oscilador levemente desafinado para dar "corpo" ao sino
+    const osc2 = audioCtx.createOscillator();
+    osc2.type      = 'sine';
+    osc2.frequency.setValueAtTime(freq * 2.756, startTime); // harmônico típico de sino
+
+    // Envelope de amplitude: ataque instantâneo, decaimento natural de sino
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(gainPeak, startTime + 0.008);   // ataque: 8ms
+    gain.gain.exponentialRampToValueAtTime(gainPeak * 0.3, startTime + 0.12); // decaimento rápido
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);     // fade final
+
+    // Ganho menor para o harmônico
+    const gain2 = audioCtx.createGain();
+    gain2.gain.setValueAtTime(gainPeak * 0.18, startTime);
+    gain2.gain.exponentialRampToValueAtTime(0.0001, startTime + duration * 0.6);
+
+    osc1.connect(gain);
+    osc2.connect(gain2);
+    gain.connect(audioCtx.destination);
+    gain2.connect(audioCtx.destination);
+
+    osc1.start(startTime);
+    osc1.stop(startTime + duration);
+    osc2.start(startTime);
+    osc2.stop(startTime + duration);
+  }
+
+  /**
+   * Toca a sequência "ding-dong":
+   *   ding — nota mais aguda (Mi5 ≈ 659 Hz)
+   *   dong — nota mais grave (Dó5 ≈ 523 Hz), 300ms depois
+   */
+  function playDingDong() {
+    if (!audioCtx || !soundEnabled) return;
+
+    // Retoma o contexto caso tenha sido suspenso pelo navegador
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().then(() => _scheduleDingDong());
+    } else {
+      _scheduleDingDong();
+    }
+  }
+
+  function _scheduleDingDong() {
+    const now = audioCtx.currentTime;
+    playBell(659.3, now,        1.4, 0.38);  // ding — Mi5
+    playBell(523.3, now + 0.30, 1.8, 0.32);  // dong — Dó5
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     ATIVAÇÃO (primeiro clique obrigatório pelo navegador)
+  ═══════════════════════════════════════════════════════════════════ */
+  activateBtn.addEventListener('click', () => {
+    ensureAudioContext();
+
+    // Toca imediatamente para confirmar que está funcionando
+    playDingDong();
+
+    // Esconde o overlay
+    gate.classList.add('gone');
+
+    // Mostra o indicador de som
+    soundIndicator.style.display = 'flex';
+
+    // Inicia o sistema
+    bootstrap();
+  });
+
+  /* ═══════════════════════════════════════════════════════════════════
+     INDICADOR DE SOM — permite mutar/desmutar sem sair da página
+  ═══════════════════════════════════════════════════════════════════ */
+  soundIndicator.addEventListener('click', () => {
+    soundEnabled = !soundEnabled;
+    soundIndicator.classList.toggle('muted', !soundEnabled);
+    soundLabel.textContent = soundEnabled ? 'Som ativo' : 'Som mudo';
+    if (soundEnabled) soundIndicator.querySelector('.si-icon').textContent = '🔔';
+    else              soundIndicator.querySelector('.si-icon').textContent = '🔕';
+  });
 
   /* ═══════════════════════════════════════════════════════════════════
      HELPERS
@@ -325,25 +455,20 @@
 
   /* ═══════════════════════════════════════════════════════════════════
      CROSS-FADE
-     Carrega a nova URL no layer inativo e depois faz a troca.
   ═══════════════════════════════════════════════════════════════════ */
   function crossFadeTo(url, onReady) {
-    const incoming = activeLayer === 'A' ? imgB  : imgA;
+    const incoming = activeLayer === 'A' ? imgB   : imgA;
     const inLayer  = activeLayer === 'A' ? layerB : layerA;
     const outLayer = activeLayer === 'A' ? layerA : layerB;
 
     incoming.onload = () => {
-      // Traz o layer de trás para a frente com fade-in
       inLayer.style.opacity  = '1';
       outLayer.style.opacity = '0';
       activeLayer = activeLayer === 'A' ? 'B' : 'A';
       if (onReady) setTimeout(onReady, FADE_DURATION);
     };
-    incoming.onerror = () => {
-      if (onReady) onReady();
-    };
+    incoming.onerror = () => { if (onReady) onReady(); };
 
-    // Garante que está por baixo antes de carregar
     inLayer.style.opacity = '0';
     incoming.src = url;
   }
@@ -352,33 +477,27 @@
      BUSCA A IMAGEM MAIS RECENTE
   ═══════════════════════════════════════════════════════════════════ */
   async function fetchLatest() {
-    const res  = await fetch(`/api/public/latest?token=${encodeURIComponent(TOKEN)}`);
-    const data = await res.json();
+    let res, data;
+    try {
+      res  = await fetch(`/api/public/latest?token=${encodeURIComponent(TOKEN)}`);
+      data = await res.json();
+    } catch (_) { return; } // falha de rede — tenta no próximo ciclo
 
     if (!res.ok) {
-      // Para o polling e mostra o erro
       clearInterval(polling);
       if (res.status === 403) {
-        showError(
-          'Acesso negado',
-          'O token informado é inválido ou está ausente.',
-          `URL esperada: /public-view.html?token=SEU_TOKEN`
-        );
+        showError('Acesso negado', 'O token informado é inválido ou está ausente.',
+          'URL esperada: /public-view.html?token=SEU_TOKEN');
       } else if (res.status === 404) {
-        showError(
-          'Nenhuma imagem',
-          'Ainda não há fotos enviadas no sistema.',
-          ''
-        );
-        // Retoma polling para quando a primeira foto chegar
-        startPolling();
+        showError('Nenhuma imagem', 'Ainda não há fotos enviadas no sistema.', '');
+        startPolling(); // continua tentando
       } else {
         showError('Erro', data.error || 'Erro desconhecido.', '');
       }
       return;
     }
 
-    // Mesma imagem → não faz nada
+    // Mesma imagem → sem mudança
     if (data.publicId === currentPublicId) return;
 
     const isFirstLoad = currentPublicId === null;
@@ -388,11 +507,16 @@
     errorScreen.classList.remove('visible');
     layerA.style.display = '';
     layerB.style.display = '';
-
     footerTs.textContent = formatTimestamp(data.createdAt);
 
     crossFadeTo(data.url, () => {
-      if (!isFirstLoad) showBadge();
+      if (!isFirstLoad) {
+        showBadge();
+        // ── CAMPAINHA ──────────────────────────────────────────────
+        // Toca independente de a aba estar visível ou em segundo plano.
+        // O AudioContext continua ativo enquanto a aba existir na memória.
+        playDingDong();
+      }
     });
   }
 
@@ -405,22 +529,17 @@
   }
 
   /* ═══════════════════════════════════════════════════════════════════
-     INIT
+     BOOTSTRAP — só roda após o clique de ativação
   ═══════════════════════════════════════════════════════════════════ */
-  (function init() {
+  function bootstrap() {
     if (!TOKEN) {
-      showError(
-        'Token ausente',
-        'Acesse esta página com o token público na URL.',
-        'Exemplo: /public-view.html?token=meu-token-secreto-aqui'
-      );
+      showError('Token ausente', 'Acesse esta página com o token público na URL.',
+        'Exemplo: /public-view.html?token=meu-token-secreto-aqui');
       return;
     }
-
-    // Primeira carga imediata, depois polling
     fetchLatest();
     startPolling();
-  })();
+  }
 </script>
 </body>
 </html>
