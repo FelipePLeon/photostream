@@ -613,11 +613,21 @@
   }, { passive: true });
 
   /* ═══════════════════════════════════════════════════════════════════
+     FETCH COM TIMEOUT — evita que cold-start do Render trave o polling
+  ═══════════════════════════════════════════════════════════════════ */
+  function fetchWithTimeout(url, timeoutMs = 15000) {
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), timeoutMs);
+    return fetch(url, { signal: ctrl.signal })
+      .finally(() => clearTimeout(tid));
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
      CARREGAR LISTA COMPLETA DE IMAGENS
   ═══════════════════════════════════════════════════════════════════ */
   async function loadAllImages() {
     try {
-      const res  = await fetch(`/api/public/images?token=${encodeURIComponent(TOKEN)}`);
+      const res  = await fetchWithTimeout(`/api/public/images?token=${encodeURIComponent(TOKEN)}`);
       const data = await res.json();
       if (res.ok && Array.isArray(data)) { images = data; return true; }
     } catch (_) {}
@@ -627,88 +637,109 @@
   /* ═══════════════════════════════════════════════════════════════════
      POLLING — coração do sistema de atualização automática
 
-     Lógica de detecção de mudança:
-       • publicId diferente  → nova imagem (upload ou pin de foto diferente)
-       • mesmo publicId mas pinnedAt diferente → re-pin da mesma foto
-       • ambos iguais → sem mudança real, ignora
+     USA setTimeout RECURSIVO em vez de setInterval porque:
+       1. Evita acúmulo de requisições se o servidor demorar (cold-start Render)
+       2. Browsers throttle setInterval em background tabs para ~60s
+          (Chrome, Firefox, Safari). setTimeout recursivo sofre o mesmo
+          throttle mas ao menos garante que só 1 requisição esteja em voo.
+       3. Quando a aba volta ao foco (visibilitychange), dispara imediatamente.
+
+     Lógica de detecção:
+       • publicId diferente        → nova imagem
+       • mesmo publicId, pinnedAt diferente → re-pin da mesma foto
+       • ambos iguais              → sem mudança, agenda próximo ciclo
 
      Lógica de exibição:
-       • viewIndex === 0 → usuário vê a mais recente → atualiza imediatamente
-       • viewIndex > 0  → usuário navega → não interrompe, mostra badge clicável
+       • viewIndex === 0 → atualiza tela automaticamente
+       • viewIndex > 0  → não interrompe, mostra badge clicável
   ═══════════════════════════════════════════════════════════════════ */
+  let pollingActive = false;
+
   async function fetchLatest() {
+    // Não dispara se outra chamada ainda está em voo
+    if (!pollingActive) return;
+
     let res, data;
     try {
-      res  = await fetch(`/api/public/latest?token=${encodeURIComponent(TOKEN)}`);
+      res  = await fetchWithTimeout(`/api/public/latest?token=${encodeURIComponent(TOKEN)}`);
       data = await res.json();
-    } catch (_) { return; }
+    } catch (_) {
+      // Timeout ou erro de rede (ex: servidor dormindo no Render)
+      // Agenda o próximo ciclo normalmente — vai tentar de novo
+      if (pollingActive) polling = setTimeout(fetchLatest, POLL_INTERVAL);
+      return;
+    }
 
     if (!res.ok) {
       if (res.status === 403) {
-        clearInterval(polling);
+        pollingActive = false;
         showError('Acesso negado', 'O token informado é inválido ou está ausente.',
           'URL esperada: /public-view.html?token=SEU_TOKEN');
+        return;
       }
-      // 404 = sem imagens → continua tentando
+      // 404 = sem imagens ainda → continua tentando
+      if (pollingActive) polling = setTimeout(fetchLatest, POLL_INTERVAL);
       return;
     }
 
     // ── Detecção de mudança ────────────────────────────────────────
     const sameId     = (data.publicId  === livePublicId);
     const samePinned = ((data.pinnedAt ?? null) === livePinnedAt);
-    if (sameId && samePinned) return; // nada mudou
+    if (!sameId || !samePinned) {
+      // ── Atualiza o estado "ao vivo" ────────────────────────────
+      const isFirstLoad = (livePublicId === null);
+      livePublicId = data.publicId;
+      livePinnedAt = data.pinnedAt ?? null;
 
-    // ── Atualiza o estado "ao vivo" ────────────────────────────────
-    const isFirstLoad = (livePublicId === null);
-    livePublicId = data.publicId;
-    livePinnedAt = data.pinnedAt ?? null;
+      await loadAllImages();
 
-    // Recarrega a lista completa (nova foto pode ter entrado)
-    await loadAllImages();
+      // Move a imagem ao vivo para o índice 0 do array local
+      const liveIdx = images.findIndex(img => img.publicId === data.publicId);
+      if (liveIdx > 0) {
+        const liveImg = images.splice(liveIdx, 1)[0];
+        images.unshift(liveImg);
+      }
 
-    // Localiza o índice da imagem ao vivo na lista atualizada
-    // (pode não ser [0] se foi pinada uma foto antiga)
-    const liveIdx = images.findIndex(img => img.publicId === data.publicId);
-    const targetIdx = liveIdx >= 0 ? liveIdx : 0;
+      updateNavButtons();
 
-    // Ajusta o array para que a imagem ao vivo apareça no índice 0
-    // Isso garante que viewIndex=0 sempre seja "a foto que deve ser exibida agora"
-    if (liveIdx > 0) {
-      const liveImg = images.splice(liveIdx, 1)[0];
-      images.unshift(liveImg);
-    }
-
-    updateNavButtons();
-
-    if (isFirstLoad) {
-      // Primeira exibição — sem animação especial, sem som
-      viewIndex = 0;
-      spinner.classList.add('hidden');
-      errorScreen.classList.remove('visible');
-      layerA.style.display = '';
-      layerB.style.display = '';
-      renderAt(0);
-      return;
-    }
-
-    // Nova imagem/pin chegou durante uso normal
-    if (viewIndex === 0) {
-      // Estava vendo a foto ao vivo → atualiza automaticamente
-      renderAt(0, () => {
-        showNewBadge();
+      if (isFirstLoad) {
+        viewIndex = 0;
+        spinner.classList.add('hidden');
+        errorScreen.classList.remove('visible');
+        layerA.style.display = '';
+        layerB.style.display = '';
+        renderAt(0);
+      } else if (viewIndex === 0) {
+        renderAt(0, () => { showNewBadge(); playDingDong(); });
+      } else {
+        showNewAvailBadge();
         playDingDong();
-      });
-    } else {
-      // Está navegando → não interrompe, avisa com badge + som
-      showNewAvailBadge();
-      playDingDong();
+      }
     }
+
+    // Agenda o próximo ciclo (sempre, após processar)
+    if (pollingActive) polling = setTimeout(fetchLatest, POLL_INTERVAL);
   }
 
   function startPolling() {
-    clearInterval(polling);
-    polling = setInterval(fetchLatest, POLL_INTERVAL);
+    if (polling) clearTimeout(polling);
+    pollingActive = true;
+    polling = setTimeout(fetchLatest, 0); // dispara imediatamente no primeiro ciclo
   }
+
+  function stopPolling() {
+    pollingActive = false;
+    if (polling) { clearTimeout(polling); polling = null; }
+  }
+
+  // Quando a aba volta ao foco após ficar em background, dispara o polling
+  // imediatamente em vez de esperar o próximo ciclo agendado.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && pollingActive) {
+      if (polling) clearTimeout(polling);
+      polling = setTimeout(fetchLatest, 0);
+    }
+  });
 
   /* ═══════════════════════════════════════════════════════════════════
      BOOTSTRAP — chamado pelo gate (com ou sem som)

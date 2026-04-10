@@ -410,20 +410,18 @@ app.post('/api/upload', requireAuth, upload.single('image'), async (req, res) =>
     }
 
     // ── Etapa 2: Upload para Cloudinary ───────────────────────────────────────
-    // eager: aplica f_auto + q_auto para otimização automática de formato e qualidade
+    // Sem eager transforms: evita o "filtro azul" em HTTPS no Render,
+    // causado por URLs eager com f_auto que podem retornar AVIF/WebP
+    // com metadados de cor corrompidos antes do processamento terminar.
+    // O Cloudinary já otimiza automaticamente na entrega via CDN.
     const result = await uploadToCloudinary(finalBuffer, {
       public_id:     publicId,
       resource_type: 'image',
-      eager: [{ fetch_format: 'auto', quality: 'auto' }],
-      eager_async: false, // processa de forma síncrona para retornar a URL otimizada
     });
-
-    // Prefere a URL eager (otimizada) se disponível, senão usa a URL original
-    const finalUrl = result.eager?.[0]?.secure_url ?? result.secure_url;
 
     res.json({
       success:     true,
-      url:         finalUrl,
+      url:         result.secure_url,
       publicId:    result.public_id,
       aiProcessed,
       message:     aiProcessed
@@ -436,7 +434,41 @@ app.post('/api/upload', requireAuth, upload.single('image'), async (req, res) =>
   }
 });
 
+// ─── Health check / ping (mantém o serviço acordado no Render free tier) ────────
+// O Render dorme serviços gratuitos após 15 min de inatividade.
+// Esta rota leve é usada pelo auto-ping interno E por serviços externos
+// como UptimeRobot para manter o servidor sempre ativo.
+app.get('/api/ping', (req, res) => {
+  res.json({ ok: true, ts: Date.now() });
+});
+
 // ─── Start ───────────────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`PhotoStream running on http://localhost:${PORT}`);
 });
+
+// Render free tier fecha conexões ociosas após ~75s.
+// Aumentar keepAliveTimeout e headersTimeout evita "Connection reset" intermitente.
+server.keepAliveTimeout = 120_000;  // 120s
+server.headersTimeout   = 125_000;  // deve ser maior que keepAliveTimeout
+
+// ─── Auto-ping interno ────────────────────────────────────────────────────────────
+// Pinga o próprio servidor a cada 10 minutos para evitar o sleep do Render.
+// Só ativa em produção (quando PORT vem do ambiente, não localhost).
+if (process.env.PORT) {
+  const SELF_URL      = process.env.RENDER_EXTERNAL_URL
+    ? `${process.env.RENDER_EXTERNAL_URL}/api/ping`
+    : `http://localhost:${PORT}/api/ping`;
+  const PING_INTERVAL = 10 * 60 * 1000; // 10 minutos
+
+  setInterval(async () => {
+    try {
+      await fetch(SELF_URL);
+      console.log(`[ping] self-ping ok → ${SELF_URL}`);
+    } catch (e) {
+      console.warn(`[ping] self-ping falhou: ${e.message}`);
+    }
+  }, PING_INTERVAL);
+
+  console.log(`[ping] auto-ping ativo a cada 10min → ${SELF_URL}`);
+}
