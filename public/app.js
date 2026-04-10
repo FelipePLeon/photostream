@@ -11,6 +11,13 @@ const state = {
   lightboxIndex:   0,
 };
 
+// Detecta se o usuário veio da public-view via botão "Galeria"
+const _qs          = new URLSearchParams(location.search);
+const FROM_PUBLIC  = _qs.get('from') === 'public-view';
+const RETURN_URL   = FROM_PUBLIC ? (_qs.get('returnUrl') || '') : '';
+// Token público passado pela public-view para autologin automático
+const PV_TOKEN     = FROM_PUBLIC ? (_qs.get('pvtoken') || '') : '';
+
 let pollingInterval = null;
 let newBadgeTimer   = null;
 let liveToastTimer  = null;
@@ -72,7 +79,14 @@ async function pinToLive(index) {
         createdAt: img.createdAt,
       }),
     });
-    if (r.ok) showLiveToast();
+    if (r.ok) {
+      showLiveToast();
+      // Se o usuário veio da public-view via botão "Galeria", redireciona de volta
+      // após o pin, para que a public-view exiba imediatamente a imagem escolhida.
+      if (FROM_PUBLIC && RETURN_URL) {
+        setTimeout(() => { window.location.href = RETURN_URL; }, 900);
+      }
+    }
   } catch (_) {}
 }
 
@@ -94,6 +108,7 @@ function showLiveToast() {
    AUTH
 ═══════════════════════════════════════════════════════════════════════════ */
 async function init() {
+  // Caso 1: já tem token salvo — verifica se ainda é válido
   const saved = localStorage.getItem('ps_token');
   if (saved) {
     state.token = saved;
@@ -104,6 +119,24 @@ async function init() {
     state.token = null;
     localStorage.removeItem('ps_token');
   }
+
+  // Caso 2: veio da public-view com pvtoken → faz autologin automático,
+  // sem pedir usuário e senha. O servidor valida o PUBLIC_VIEW_TOKEN
+  // e retorna uma sessão autenticada.
+  if (FROM_PUBLIC && PV_TOKEN) {
+    try {
+      const r    = await fetch(`/api/public/autologin?token=${encodeURIComponent(PV_TOKEN)}`);
+      const data = await r.json();
+      if (r.ok && data.token) {
+        state.token = data.token;
+        localStorage.setItem('ps_token', data.token);
+        showApp();
+        return;
+      }
+    } catch (_) {}
+    // Autologin falhou (token inválido) — cai no login normal
+  }
+
   showLogin();
 }
 
@@ -173,6 +206,9 @@ function showApp() {
   document.getElementById('appScreen').classList.remove('hidden');
   loadImages();
   startPolling();
+
+  // Se veio da public-view, abre direto na aba Galeria
+  if (FROM_PUBLIC) switchTab('gallery');
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -485,15 +521,16 @@ async function sendUpload() {
 
   const form = new FormData();
   form.append('image', selectedFile);
+  // Nota: processamento com IA (Stability AI) está temporariamente desativado.
+  // Para reativar, adicione o campo "prompt" ao FormData e restaure o bloco
+  // de UI no index.html (.ai-prompt-wrap) e o listener do aiPrompt.
 
   try {
     const r    = await api('/api/upload', { method: 'POST', body: form });
     const data = await r.json();
     if (data.success) {
-      showFeedback('✓ Imagem enviada com sucesso!', 'success');
+      showFeedback('✓ ' + data.message, 'success');
       resetUpload();
-      // Zera o timestamp para que o polling (e o loadImages abaixo) sempre
-      // detecte a nova imagem como "nova", sem depender do cache anterior.
       state.latestTimestamp = 0;
       await loadImages();
     } else {
@@ -553,6 +590,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('cancelUploadBtn').addEventListener('click', resetUpload);
   document.getElementById('sendUploadBtn').addEventListener('click', sendUpload);
+
+  // Nota: listener do aiPrompt removido (UI de IA desativada temporariamente).
 
   // ── Viewer ───────────────────────────────────────────────────────────────
   document.getElementById('viewRefreshBtn').addEventListener('click', () => loadImages());

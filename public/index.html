@@ -108,6 +108,32 @@
               <span id="previewName" class="preview-name"></span>
               <span id="previewSize" class="preview-size"></span>
             </div>
+
+            <!-- Campo de prompt IA — TEMPORARIAMENTE DESATIVADO
+                 Para reativar: remova os delimitadores de comentário abaixo,
+                 restaure o bloco de CSS (.ai-prompt-wrap) em style.css
+                 e restaure o sendUpload/resetUpload completos em app.js.
+            <div class="ai-prompt-wrap">
+              <div class="ai-prompt-header">
+                <span class="ai-prompt-label">
+                  <span class="ai-icon">✦</span> Instrução de IA
+                  <span class="ai-optional">(opcional)</span>
+                </span>
+                <span id="promptCounter" class="ai-prompt-counter">0 / 300</span>
+              </div>
+              <textarea
+                id="aiPrompt"
+                class="ai-prompt-input"
+                placeholder="Ex: make it look like a watercolor painting, add dramatic sunset lighting, remove the background…"
+                maxlength="300"
+                rows="3"
+              ></textarea>
+              <p class="ai-prompt-hint">
+                Processado pelo modelo Structure da Stability AI. Deixe vazio para enviar sem processamento.
+              </p>
+            </div>
+            -->
+
             <div class="preview-actions">
               <button id="cancelUploadBtn" class="btn-secondary" type="button">✕ Cancelar</button>
               <button id="sendUploadBtn" class="btn-primary" type="button">↑ Enviar</button>

@@ -507,3 +507,84 @@ button { cursor: pointer; border: none; background: none; color: inherit; font-f
 
 /* cursor pointer na imagem do lightbox para indicar que é clicável */
 #lightboxImg { cursor: pointer; }
+
+/* ══════════════════════════════════════════════════════════════════
+   AI PROMPT — campo de instrução no painel de upload
+══════════════════════════════════════════════════════════════════ */
+.ai-prompt-wrap {
+  width: 100%;
+  background: rgba(91,110,245,.06);
+  border: 1px solid rgba(91,110,245,.22);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-prompt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ai-prompt-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--accent2);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.ai-icon { color: var(--accent); font-size: 11px; }
+.ai-optional {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--text3);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.ai-prompt-counter {
+  font-size: 11px;
+  color: var(--text3);
+  font-family: 'DM Sans', sans-serif;
+  flex-shrink: 0;
+}
+.ai-prompt-counter.near-limit { color: var(--error); }
+
+.ai-prompt-input {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: 'DM Sans', sans-serif;
+  resize: vertical;
+  min-height: 72px;
+  outline: none;
+  line-height: 1.5;
+  transition: border-color .15s, box-shadow .15s;
+}
+.ai-prompt-input::placeholder { color: var(--text3); }
+.ai-prompt-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(91,110,245,.15);
+}
+
+.ai-prompt-hint {
+  font-size: 11px;
+  color: var(--text3);
+  line-height: 1.4;
+}
+
+/* Feedback com etapas durante o processamento com IA */
+.upload-feedback.ai-step-1::before { content: '⏳ Etapa 1/2 — '; }
+.upload-feedback.ai-step-2::before { content: '☁️ Etapa 2/2 — '; }

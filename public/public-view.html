@@ -9,7 +9,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:wght@300;400&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
       --bg:      #0a0a0f;
       --bg2:     #111118;
@@ -22,61 +21,67 @@
       --text2:   #8888a8;
       --text3:   #555570;
     }
-
     html, body {
-      height: 100%;
-      background: var(--bg);
-      color: var(--text);
+      height: 100%; background: var(--bg); color: var(--text);
       font-family: 'DM Sans', system-ui, sans-serif;
-      overflow: hidden;
+      overflow: hidden; user-select: none;
     }
 
-    /* ── Layout ────────────────────────────────────────────────────── */
+    /* ── Layout ──────────────────────────────────────────────────── */
     #app {
       width: 100vw; height: 100dvh;
       display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      position: relative;
+      align-items: center; justify-content: center; position: relative;
     }
 
-    /* ── Header ────────────────────────────────────────────────────── */
+    /* ── Header ──────────────────────────────────────────────────── */
     #header {
       position: fixed; top: 0; left: 0; right: 0; z-index: 10;
       display: flex; align-items: center; justify-content: space-between;
       padding: 14px 20px;
       background: linear-gradient(to bottom, rgba(10,10,15,.95) 0%, transparent 100%);
-      pointer-events: none;
     }
-    .logo { display: flex; align-items: center; gap: 8px; }
-    .logo-icon {
+    .header-left  { display: flex; align-items: center; gap: 10px; }
+    .logo         { display: flex; align-items: center; gap: 8px; }
+    .logo-icon    {
       font-size: 20px;
       background: linear-gradient(135deg, #5b6ef5, #8b9af8);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
-    .logo-text {
+    .logo-text    {
       font-family: 'Syne', sans-serif; font-weight: 700; font-size: 17px;
       background: linear-gradient(135deg, var(--text) 40%, var(--accent2));
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
+
+    /* Botão Galeria */
+    #galleryLink {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; font-family: 'Syne', sans-serif; font-weight: 700;
+      color: var(--text2);
+      background: rgba(255,255,255,.06); border: 1px solid var(--border);
+      padding: 5px 12px; border-radius: 20px;
+      text-decoration: none; cursor: pointer;
+      transition: color .15s, border-color .15s, background .15s;
+    }
+    #galleryLink:hover { color: var(--accent2); border-color: var(--accent); background: rgba(91,110,245,.12); }
+    #galleryLink .gl-icon { font-size: 13px; }
+
+    /* Badge Ao Vivo */
     .live-badge {
       display: flex; align-items: center; gap: 6px;
       font-size: 12px; font-family: 'Syne', sans-serif; font-weight: 600;
       color: var(--text2);
       background: rgba(255,255,255,.06); border: 1px solid var(--border);
       padding: 5px 11px; border-radius: 20px;
-      pointer-events: auto;
     }
     .live-dot {
       width: 7px; height: 7px; border-radius: 50%;
-      background: var(--success);
-      animation: pulse 2s ease-in-out infinite; flex-shrink: 0;
+      background: var(--success); animation: pulse 2s ease-in-out infinite; flex-shrink: 0;
     }
-    @keyframes pulse {
-      0%,100% { opacity:1; transform:scale(1); }
-      50%      { opacity:.5; transform:scale(.8); }
-    }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:.5;transform:scale(.8);} }
 
-    /* ── Imagem / layers ───────────────────────────────────────────── */
+    /* ── Imagem / layers ─────────────────────────────────────────── */
     #imgWrapper {
       position: relative; width: 100vw; height: 100dvh;
       display: flex; align-items: center; justify-content: center;
@@ -84,17 +89,37 @@
     .layer {
       position: absolute; inset: 0;
       display: flex; align-items: center; justify-content: center;
-      padding: 60px 20px 48px;
+      padding: 70px 88px 64px;
     }
     .layer img {
-      max-width: 100%; max-height: 100%;
-      object-fit: contain; border-radius: 4px;
-      box-shadow: 0 8px 48px rgba(0,0,0,.7); display: block;
+      max-width: 100%; max-height: 100%; object-fit: contain;
+      border-radius: 4px; box-shadow: 0 8px 48px rgba(0,0,0,.7); display: block;
     }
-    #layerA { opacity: 1; transition: opacity .6s ease; }
-    #layerB { opacity: 0; transition: opacity .6s ease; }
+    #layerA { opacity: 1; transition: opacity .5s ease; }
+    #layerB { opacity: 0; transition: opacity .5s ease; }
 
-    /* ── Spinner ───────────────────────────────────────────────────── */
+    /* ── Botões de navegação ─────────────────────────────────────── */
+    .nav-btn {
+      position: fixed; top: 50%; z-index: 15; transform: translateY(-50%);
+      width: 52px; height: 52px; display: flex; align-items: center; justify-content: center;
+      background: rgba(17,17,24,.75); border: 1px solid var(--border); border-radius: 50%;
+      color: var(--text2); font-size: 22px; cursor: pointer; backdrop-filter: blur(6px);
+      transition: background .15s, color .15s, border-color .15s, opacity .2s, transform .15s;
+      opacity: 0; pointer-events: none;
+    }
+    .nav-btn.visible { opacity: 1; pointer-events: auto; }
+    .nav-btn:hover   { background: rgba(91,110,245,.25); border-color: var(--accent); color: var(--text); }
+    .nav-btn:active  { transform: translateY(-50%) scale(.93); }
+    .nav-btn:disabled { opacity: .2 !important; cursor: not-allowed; pointer-events: none; }
+    #btnPrev { left: 14px; }
+    #btnNext { right: 14px; }
+    @media (max-width: 480px) {
+      .nav-btn { width: 42px; height: 42px; font-size: 18px; }
+      #btnPrev { left: 8px; } #btnNext { right: 8px; }
+      .layer   { padding: 70px 60px 64px; }
+    }
+
+    /* ── Spinner ─────────────────────────────────────────────────── */
     #spinner {
       position: absolute; width: 36px; height: 36px;
       border: 3px solid var(--border); border-top-color: var(--accent);
@@ -103,32 +128,34 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     #spinner.hidden { display: none; }
 
-    /* ── Rodapé ────────────────────────────────────────────────────── */
+    /* ── Rodapé ──────────────────────────────────────────────────── */
     #footer {
       position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
-      display: flex; align-items: center; justify-content: center; gap: 16px;
-      padding: 14px 20px;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      padding: 10px 20px 14px;
       background: linear-gradient(to top, rgba(10,10,15,.95) 0%, transparent 100%);
       pointer-events: none;
     }
-    #footerTimestamp { font-size: 12px; color: var(--text3); font-weight: 300; }
+    #footerTimestamp { font-size: 11px; color: var(--text3); font-weight: 300; }
+    #footerCounter   { font-size: 11px; color: var(--text3); font-weight: 300; font-family: 'Syne', sans-serif; }
+    .footer-sep      { font-size: 10px; color: var(--text3); opacity: .4; }
 
-    /* ── Tela de erro ──────────────────────────────────────────────── */
+    /* ── Tela de erro ────────────────────────────────────────────── */
     #errorScreen {
       display: none; flex-direction: column; align-items: center;
       justify-content: center; gap: 12px; text-align: center; padding: 32px;
     }
     #errorScreen.visible { display: flex; }
-    .error-icon { font-size: 40px; opacity: .5; }
+    .error-icon  { font-size: 40px; opacity: .5; }
     .error-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; }
-    .error-msg  { font-size: 14px; color: var(--text2); max-width: 320px; }
+    .error-msg   { font-size: 14px; color: var(--text2); max-width: 320px; }
     .error-token {
       margin-top: 8px; font-size: 12px; color: var(--text3);
       background: rgba(255,255,255,.04); border: 1px solid var(--border);
       border-radius: 8px; padding: 10px 16px; font-family: monospace;
     }
 
-    /* ── Badge "Nova foto" ─────────────────────────────────────────── */
+    /* ── Badge "Nova foto" (modo ao vivo) ────────────────────────── */
     #newBadge {
       position: fixed; top: 58px; right: 16px; z-index: 20;
       background: var(--accent); color: #fff;
@@ -139,81 +166,91 @@
       pointer-events: none;
     }
     #newBadge.hidden { display: none; }
+
+    /* ── Badge "Nova foto disponível" (modo navegação) ───────────── */
+    #newAvailBadge {
+      position: fixed; top: 58px; left: 50%; transform: translateX(-50%);
+      z-index: 20; display: flex; align-items: center; gap: 7px;
+      background: rgba(10,10,15,.92); border: 1px solid var(--accent);
+      color: var(--accent2); font-family: 'Syne', sans-serif; font-weight: 700; font-size: 12px;
+      padding: 7px 16px; border-radius: 20px; box-shadow: 0 0 20px rgba(91,110,245,.35);
+      cursor: pointer; white-space: nowrap; pointer-events: auto;
+      animation: badgePop .35s cubic-bezier(.34,1.56,.64,1);
+    }
+    #newAvailBadge.hidden { display: none; }
+    #newAvailBadge:hover  { background: rgba(91,110,245,.18); }
+
     @keyframes badgePop {
-      from { transform: scale(0) translateY(-8px); opacity:0; }
-      to   { transform: scale(1) translateY(0);    opacity:1; }
+      from { transform: translateX(-50%) scale(0) translateY(-6px); opacity:0; }
+      to   { transform: translateX(-50%) scale(1) translateY(0);    opacity:1; }
     }
 
-    /* ── Overlay de ativação de áudio ──────────────────────────────── */
-    /*
-      Exibido apenas antes do primeiro clique.
-      Depois que o usuário clica, some para sempre nessa aba.
-    */
+    /* ── Overlay de ativação de áudio ────────────────────────────── */
     #audioGate {
       position: fixed; inset: 0; z-index: 100;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center; gap: 20px;
-      background: rgba(10,10,15,.96);
-      backdrop-filter: blur(8px);
+      background: rgba(10,10,15,.96); backdrop-filter: blur(8px);
+      transition: opacity .4s ease;
     }
-    #audioGate.gone { display: none; }
-
-    .gate-icon { font-size: 52px; line-height: 1; }
-
-    .gate-title {
-      font-family: 'Syne', sans-serif; font-weight: 700; font-size: 20px;
-      color: var(--text); text-align: center; max-width: 280px;
-    }
-    .gate-sub {
-      font-size: 13px; color: var(--text2);
-      text-align: center; max-width: 260px; line-height: 1.6;
-    }
-
+    #audioGate.fading { opacity: 0; pointer-events: none; }
+    #audioGate.gone   { display: none; }
+    .gate-icon  { font-size: 52px; line-height: 1; }
+    .gate-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 20px; text-align: center; max-width: 280px; }
+    .gate-sub   { font-size: 13px; color: var(--text2); text-align: center; max-width: 260px; line-height: 1.6; }
     #activateBtn {
       display: flex; align-items: center; gap: 10px;
       font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px;
-      color: #fff; background: var(--accent);
-      border: none; border-radius: 14px; padding: 14px 32px;
-      cursor: pointer;
+      color: #fff; background: var(--accent); border: none; border-radius: 14px;
+      padding: 14px 32px; cursor: pointer;
       box-shadow: 0 0 28px rgba(91,110,245,.45);
       transition: opacity .15s, transform .1s;
     }
     #activateBtn:hover  { opacity: .88; }
     #activateBtn:active { transform: scale(.97); }
+    .btn-bell  { font-size: 20px; }
+    .gate-note { font-size: 11px; color: var(--text3); text-align: center; max-width: 240px; line-height: 1.5; }
 
-    .btn-bell { font-size: 20px; }
-
-    /* nota explicativa discreta */
-    .gate-note {
-      font-size: 11px; color: var(--text3);
-      text-align: center; max-width: 240px; line-height: 1.5;
+    /* Barra de progresso do auto-dismiss do gate */
+    #gateProgress {
+      width: 220px; height: 3px;
+      background: var(--border); border-radius: 2px; overflow: hidden;
     }
+    #gateProgressBar {
+      height: 100%; width: 100%; background: var(--accent);
+      transform-origin: left;
+      animation: shrink 5s linear forwards;
+    }
+    @keyframes shrink { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 
-    /* ── Indicador de som (canto inferior esquerdo) ────────────────── */
+    /* ── Indicador de som ────────────────────────────────────────── */
     #soundIndicator {
       position: fixed; bottom: 14px; left: 16px; z-index: 10;
       display: flex; align-items: center; gap: 6px;
       font-size: 11px; font-family: 'Syne', sans-serif; font-weight: 600;
-      color: var(--text3);
-      background: rgba(255,255,255,.04); border: 1px solid var(--border);
-      padding: 5px 10px; border-radius: 20px;
-      cursor: pointer; transition: color .15s, border-color .15s;
-      pointer-events: auto;
+      color: var(--text3); background: rgba(255,255,255,.04); border: 1px solid var(--border);
+      padding: 5px 10px; border-radius: 20px; cursor: pointer;
+      transition: color .15s, border-color .15s;
     }
     #soundIndicator:hover { color: var(--text2); border-color: var(--text3); }
-    #soundIndicator.muted .si-icon::after { content: ' ✕'; font-size: 9px; color: var(--error); }
     .si-icon { font-size: 13px; }
   </style>
 </head>
 <body>
-
 <div id="app">
 
   <!-- Header -->
   <div id="header">
-    <div class="logo">
-      <span class="logo-icon">◈</span>
-      <span class="logo-text">PhotoStream</span>
+    <div class="header-left">
+      <div class="logo">
+        <span class="logo-icon">◈</span>
+        <span class="logo-text">PhotoStream</span>
+      </div>
+      <!-- Link para a galeria — abre na MESMA aba, sem target="_blank" -->
+      <a id="galleryLink" href="#">
+        <span class="gl-icon">🖼</span>
+        Galeria
+      </a>
     </div>
     <div class="live-badge">
       <span class="live-dot"></span>
@@ -221,8 +258,15 @@
     </div>
   </div>
 
-  <!-- Badge nova foto -->
+  <!-- Badges -->
   <div id="newBadge" class="hidden">✦ Nova foto!</div>
+  <div id="newAvailBadge" class="hidden">
+    <span>↑</span> Nova foto — toque para ver
+  </div>
+
+  <!-- Navegação -->
+  <button id="btnPrev" class="nav-btn" aria-label="Foto anterior" disabled>‹</button>
+  <button id="btnNext" class="nav-btn" aria-label="Próxima foto"  disabled>›</button>
 
   <!-- Spinner -->
   <div id="spinner"></div>
@@ -243,10 +287,12 @@
 
   <!-- Rodapé -->
   <div id="footer">
+    <span id="footerCounter"></span>
+    <span class="footer-sep" id="footerSep" style="display:none">·</span>
     <span id="footerTimestamp"></span>
   </div>
 
-  <!-- Indicador de som (visível após ativação) -->
+  <!-- Indicador de som (aparece após ativação) -->
   <div id="soundIndicator" style="display:none">
     <span class="si-icon">🔔</span>
     <span id="soundLabel">Som ativo</span>
@@ -254,23 +300,21 @@
 
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════════
-     OVERLAY DE ATIVAÇÃO
-     Exibido na primeira abertura. Some após o clique e nunca mais volta.
-═══════════════════════════════════════════════════════════════════════ -->
+<!-- Overlay de ativação de áudio -->
 <div id="audioGate">
   <div class="gate-icon">🔔</div>
   <div class="gate-title">Ativar alertas sonoros</div>
   <div class="gate-sub">
-    Toque aqui uma vez para ativar a campainha.<br>
-    O som tocará automaticamente mesmo com a janela em segundo plano.
+    Toque para ativar a campainha.<br>
+    O som toca mesmo com a janela em segundo plano.
   </div>
   <button id="activateBtn">
     <span class="btn-bell">🔔</span>
     Ativar e abrir
   </button>
+  <div id="gateProgress"><div id="gateProgressBar"></div></div>
   <div class="gate-note">
-    Esta etapa é obrigatória pelo navegador.<br>
+    Some automaticamente em 5s e abre sem som.<br>
     Após clicar, não é necessário repetir.
   </div>
 </div>
@@ -280,150 +324,185 @@
      CONFIGURAÇÃO
   ═══════════════════════════════════════════════════════════════════ */
   const TOKEN         = new URLSearchParams(location.search).get('token') || '';
-  const POLL_INTERVAL = 4000;  // ms
-  const FADE_DURATION = 600;   // ms (deve bater com o CSS)
+  const POLL_INTERVAL = 4000;   // ms — intervalo do polling
+  const FADE_DURATION = 500;    // ms — duração do cross-fade (bate com o CSS)
+  const GATE_TIMEOUT  = 5000;   // ms — auto-dismiss do overlay de áudio
 
   /* ═══════════════════════════════════════════════════════════════════
-     ESTADO
+     LINK DA GALERIA — mesma aba, sem target="_blank"
+     Passa from=public-view e returnUrl para que o app.js
+     abra direto na galeria e retorne aqui após o pin.
   ═══════════════════════════════════════════════════════════════════ */
-  let currentPublicId = null;
-  let activeLayer     = 'A';
-  let badgeTimer      = null;
-  let polling         = null;
-  let audioCtx        = null;   // Web Audio context (criado no primeiro clique)
-  let soundEnabled    = true;   // pode ser silenciado pelo indicador
+  (function setupGalleryLink() {
+    const link      = document.getElementById('galleryLink');
+    const returnUrl = encodeURIComponent(location.href);
+    // Passa o PUBLIC_VIEW_TOKEN para que o app.js possa fazer autologin
+    // sem pedir usuário e senha. Mesma aba, sem target="_blank".
+    link.href = `/?from=public-view&pvtoken=${encodeURIComponent(TOKEN)}&returnUrl=${returnUrl}`;
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      window.location.href = link.href;
+    });
+  })();
 
   /* ═══════════════════════════════════════════════════════════════════
-     ELEMENTOS
+     ESTADO GLOBAL
   ═══════════════════════════════════════════════════════════════════ */
-  const gate          = document.getElementById('audioGate');
-  const activateBtn   = document.getElementById('activateBtn');
-  const spinner       = document.getElementById('spinner');
-  const errorScreen   = document.getElementById('errorScreen');
-  const errorTitle    = document.getElementById('errorTitle');
-  const errorMsg      = document.getElementById('errorMsg');
-  const errorToken    = document.getElementById('errorToken');
-  const newBadge      = document.getElementById('newBadge');
-  const footerTs      = document.getElementById('footerTimestamp');
-  const layerA        = document.getElementById('layerA');
-  const layerB        = document.getElementById('layerB');
-  const imgA          = document.getElementById('imgA');
-  const imgB          = document.getElementById('imgB');
+  let images       = [];      // lista completa [{url, publicId, createdAt}]
+  let viewIndex    = 0;       // índice exibido agora (0 = mais recente)
+  let livePublicId = null;    // publicId da imagem "ao vivo" atual
+  let livePinnedAt = null;    // pinnedAt do último pin (detecta re-pin da mesma foto)
+  let activeLayer  = 'A';
+  let badgeTimer   = null;
+  let polling      = null;
+  let audioCtx     = null;
+  let soundEnabled = false;   // começa false; vira true só se o usuário clicar no gate
+
+  /* ═══════════════════════════════════════════════════════════════════
+     ELEMENTOS DOM
+  ═══════════════════════════════════════════════════════════════════ */
+  const gate           = document.getElementById('audioGate');
+  const activateBtn    = document.getElementById('activateBtn');
+  const spinner        = document.getElementById('spinner');
+  const errorScreen    = document.getElementById('errorScreen');
+  const errorTitle     = document.getElementById('errorTitle');
+  const errorMsg       = document.getElementById('errorMsg');
+  const errorToken     = document.getElementById('errorToken');
+  const newBadge       = document.getElementById('newBadge');
+  const newAvailBadge  = document.getElementById('newAvailBadge');
+  const btnPrev        = document.getElementById('btnPrev');
+  const btnNext        = document.getElementById('btnNext');
+  const footerTs       = document.getElementById('footerTimestamp');
+  const footerCounter  = document.getElementById('footerCounter');
+  const footerSep      = document.getElementById('footerSep');
+  const layerA         = document.getElementById('layerA');
+  const layerB         = document.getElementById('layerB');
+  const imgA           = document.getElementById('imgA');
+  const imgB           = document.getElementById('imgB');
   const soundIndicator = document.getElementById('soundIndicator');
   const soundLabel     = document.getElementById('soundLabel');
 
   /* ═══════════════════════════════════════════════════════════════════
-     ÁUDIO — Web Audio API
-     Gera uma campainha "ding-dong" sinteticamente, sem arquivo externo.
-     Funciona em segundo plano porque o AudioContext roda na thread de áudio
-     do navegador, independente da visibilidade da aba.
+     OVERLAY DE ÁUDIO
+     Comportamento:
+       • Primeira visita: mostra o gate, auto-dismiss em 5s sem som,
+         ou imediatamente com som se o usuário clicar.
+       • Visitas seguintes na mesma sessão de browser (ex: retorno da galeria):
+         pula o gate completamente e retoma com a preferência salva.
+     A preferência é armazenada em sessionStorage (dura até fechar a aba).
   ═══════════════════════════════════════════════════════════════════ */
 
-  /**
-   * Cria (ou reutiliza) o AudioContext.
-   * DEVE ser chamada dentro de um handler de evento de usuário (click).
-   * Depois disso o contexto permanece desbloqueado para a aba inteira.
-   */
+  // Chaves de sessionStorage
+  const SS_GATE_DONE  = 'ps_gate_done';   // '1' quando o gate já foi dispensado
+  const SS_SOUND_ON   = 'ps_sound_on';    // '1' se o usuário ativou o som
+
+  let gateDismissed = false;
+
+  function dismissGate(withSound) {
+    if (gateDismissed) return;
+    gateDismissed = true;
+    soundEnabled  = withSound;
+
+    // Salva preferência para recargas/retornos nesta sessão
+    try {
+      sessionStorage.setItem(SS_GATE_DONE, '1');
+      sessionStorage.setItem(SS_SOUND_ON,  withSound ? '1' : '0');
+    } catch (_) {}
+
+    gate.classList.add('fading');
+    setTimeout(() => gate.classList.add('gone'), 400);
+
+    if (withSound) {
+      soundIndicator.style.display = 'flex';
+      soundLabel.textContent = 'Som ativo';
+    }
+    bootstrap();
+  }
+
+  // Verifica se o gate já foi dispensado nesta sessão
+  (function checkPreviousSession() {
+    try {
+      if (sessionStorage.getItem(SS_GATE_DONE) === '1') {
+        // Retorno da galeria (ou recarga): pula o gate imediatamente
+        const hadSound = sessionStorage.getItem(SS_SOUND_ON) === '1';
+        gateDismissed = true;
+        soundEnabled  = hadSound;
+        gate.classList.add('gone'); // esconde sem animação
+        if (hadSound) {
+          soundIndicator.style.display = 'flex';
+          soundLabel.textContent = 'Som ativo';
+          // Recria o AudioContext (necessário após navegação)
+          ensureAudioContext();
+        }
+        bootstrap();
+        return; // não registra os timers abaixo
+      }
+    } catch (_) {}
+
+    // Primeira visita: inicia contagem de 5s e listeners normais
+    const gateDismissTimer = setTimeout(() => dismissGate(false), GATE_TIMEOUT);
+
+    activateBtn.addEventListener('click', () => {
+      clearTimeout(gateDismissTimer);
+      ensureAudioContext();
+      dismissGate(true);
+      playDingDong();
+    });
+  })();
+
+  /* ═══════════════════════════════════════════════════════════════════
+     ÁUDIO — Web Audio API (ding-dong sintético)
+     Roda na thread de áudio: funciona mesmo em segundo plano.
+  ═══════════════════════════════════════════════════════════════════ */
   function ensureAudioContext() {
     if (audioCtx) return;
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
 
-  /**
-   * Toca um único sino sintético.
-   * @param {number} freq       - frequência fundamental em Hz
-   * @param {number} startTime  - quando começar (audioCtx.currentTime + offset)
-   * @param {number} duration   - duração em segundos
-   * @param {number} gainPeak   - volume de pico (0–1)
-   */
   function playBell(freq, startTime, duration, gainPeak) {
     if (!audioCtx || !soundEnabled) return;
-
-    // Oscilador principal — senoidal com leve detune para soar mais natural
     const osc1 = audioCtx.createOscillator();
-    osc1.type      = 'sine';
+    osc1.type = 'sine';
     osc1.frequency.setValueAtTime(freq, startTime);
-    // Pequeno vibrato leve
     osc1.frequency.linearRampToValueAtTime(freq * 0.998, startTime + duration);
-
-    // Segundo oscilador levemente desafinado para dar "corpo" ao sino
     const osc2 = audioCtx.createOscillator();
-    osc2.type      = 'sine';
-    osc2.frequency.setValueAtTime(freq * 2.756, startTime); // harmônico típico de sino
-
-    // Envelope de amplitude: ataque instantâneo, decaimento natural de sino
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(freq * 2.756, startTime);
     const gain = audioCtx.createGain();
     gain.gain.setValueAtTime(0, startTime);
-    gain.gain.linearRampToValueAtTime(gainPeak, startTime + 0.008);   // ataque: 8ms
-    gain.gain.exponentialRampToValueAtTime(gainPeak * 0.3, startTime + 0.12); // decaimento rápido
-    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);     // fade final
-
-    // Ganho menor para o harmônico
+    gain.gain.linearRampToValueAtTime(gainPeak, startTime + 0.008);
+    gain.gain.exponentialRampToValueAtTime(gainPeak * 0.3, startTime + 0.12);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
     const gain2 = audioCtx.createGain();
     gain2.gain.setValueAtTime(gainPeak * 0.18, startTime);
     gain2.gain.exponentialRampToValueAtTime(0.0001, startTime + duration * 0.6);
-
-    osc1.connect(gain);
-    osc2.connect(gain2);
-    gain.connect(audioCtx.destination);
-    gain2.connect(audioCtx.destination);
-
-    osc1.start(startTime);
-    osc1.stop(startTime + duration);
-    osc2.start(startTime);
-    osc2.stop(startTime + duration);
+    osc1.connect(gain);   gain.connect(audioCtx.destination);
+    osc2.connect(gain2);  gain2.connect(audioCtx.destination);
+    osc1.start(startTime); osc1.stop(startTime + duration);
+    osc2.start(startTime); osc2.stop(startTime + duration);
   }
 
-  /**
-   * Toca a sequência "ding-dong":
-   *   ding — nota mais aguda (Mi5 ≈ 659 Hz)
-   *   dong — nota mais grave (Dó5 ≈ 523 Hz), 300ms depois
-   */
   function playDingDong() {
     if (!audioCtx || !soundEnabled) return;
-
-    // Retoma o contexto caso tenha sido suspenso pelo navegador
     if (audioCtx.state === 'suspended') {
-      audioCtx.resume().then(() => _scheduleDingDong());
+      audioCtx.resume().then(_scheduleDingDong);
     } else {
       _scheduleDingDong();
     }
   }
-
   function _scheduleDingDong() {
     const now = audioCtx.currentTime;
-    playBell(659.3, now,        1.4, 0.38);  // ding — Mi5
-    playBell(523.3, now + 0.30, 1.8, 0.32);  // dong — Dó5
+    playBell(659.3, now,        1.4, 0.38);
+    playBell(523.3, now + 0.30, 1.8, 0.32);
   }
 
   /* ═══════════════════════════════════════════════════════════════════
-     ATIVAÇÃO (primeiro clique obrigatório pelo navegador)
-  ═══════════════════════════════════════════════════════════════════ */
-  activateBtn.addEventListener('click', () => {
-    ensureAudioContext();
-
-    // Toca imediatamente para confirmar que está funcionando
-    playDingDong();
-
-    // Esconde o overlay
-    gate.classList.add('gone');
-
-    // Mostra o indicador de som
-    soundIndicator.style.display = 'flex';
-
-    // Inicia o sistema
-    bootstrap();
-  });
-
-  /* ═══════════════════════════════════════════════════════════════════
-     INDICADOR DE SOM — permite mutar/desmutar sem sair da página
+     INDICADOR DE SOM (mute/unmute)
   ═══════════════════════════════════════════════════════════════════ */
   soundIndicator.addEventListener('click', () => {
     soundEnabled = !soundEnabled;
-    soundIndicator.classList.toggle('muted', !soundEnabled);
     soundLabel.textContent = soundEnabled ? 'Som ativo' : 'Som mudo';
-    if (soundEnabled) soundIndicator.querySelector('.si-icon').textContent = '🔔';
-    else              soundIndicator.querySelector('.si-icon').textContent = '🔕';
+    soundIndicator.querySelector('.si-icon').textContent = soundEnabled ? '🔔' : '🔕';
   });
 
   /* ═══════════════════════════════════════════════════════════════════
@@ -433,9 +512,11 @@
     spinner.classList.add('hidden');
     layerA.style.display = 'none';
     layerB.style.display = 'none';
-    errorTitle.textContent = title;
-    errorMsg.textContent   = msg;
-    errorToken.textContent = hint;
+    btnPrev.classList.remove('visible');
+    btnNext.classList.remove('visible');
+    errorTitle.textContent   = title;
+    errorMsg.textContent     = msg;
+    errorToken.textContent   = hint;
     errorToken.style.display = hint ? 'block' : 'none';
     errorScreen.classList.add('visible');
   }
@@ -444,14 +525,17 @@
     if (!ms) return '';
     const d   = new Date(ms);
     const pad = (n) => String(n).padStart(2, '0');
-    return `Última foto: ${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} às ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
-  function showBadge() {
+  function showNewBadge() {
     newBadge.classList.remove('hidden');
     if (badgeTimer) clearTimeout(badgeTimer);
     badgeTimer = setTimeout(() => newBadge.classList.add('hidden'), 3500);
   }
+
+  function showNewAvailBadge() { newAvailBadge.classList.remove('hidden'); }
+  function hideNewAvailBadge() { newAvailBadge.classList.add('hidden');    }
 
   /* ═══════════════════════════════════════════════════════════════════
      CROSS-FADE
@@ -460,7 +544,6 @@
     const incoming = activeLayer === 'A' ? imgB   : imgA;
     const inLayer  = activeLayer === 'A' ? layerB : layerA;
     const outLayer = activeLayer === 'A' ? layerA : layerB;
-
     incoming.onload = () => {
       inLayer.style.opacity  = '1';
       outLayer.style.opacity = '0';
@@ -468,76 +551,176 @@
       if (onReady) setTimeout(onReady, FADE_DURATION);
     };
     incoming.onerror = () => { if (onReady) onReady(); };
-
     inLayer.style.opacity = '0';
     incoming.src = url;
   }
 
   /* ═══════════════════════════════════════════════════════════════════
-     BUSCA A IMAGEM MAIS RECENTE
+     RENDER — exibe a imagem no índice dado
+  ═══════════════════════════════════════════════════════════════════ */
+  function renderAt(index, onReady) {
+    if (!images.length) return;
+    const img = images[index];
+    if (!img) return;
+    footerCounter.textContent = `${index + 1} / ${images.length}`;
+    footerTs.textContent      = formatTimestamp(img.createdAt);
+    footerSep.style.display   = 'inline';
+    btnPrev.disabled = (index >= images.length - 1);
+    btnNext.disabled = (index <= 0);
+    crossFadeTo(img.url, onReady);
+  }
+
+  function updateNavButtons() {
+    if (images.length > 1) {
+      btnPrev.classList.add('visible');
+      btnNext.classList.add('visible');
+    } else {
+      btnPrev.classList.remove('visible');
+      btnNext.classList.remove('visible');
+    }
+    btnPrev.disabled = (viewIndex >= images.length - 1);
+    btnNext.disabled = (viewIndex <= 0);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     NAVEGAÇÃO MANUAL
+  ═══════════════════════════════════════════════════════════════════ */
+  function goTo(index) {
+    if (index < 0 || index >= images.length) return;
+    viewIndex = index;
+    updateNavButtons();
+    renderAt(viewIndex);
+    if (viewIndex === 0) hideNewAvailBadge();
+  }
+
+  btnPrev.addEventListener('click', () => goTo(viewIndex + 1));
+  btnNext.addEventListener('click', () => goTo(viewIndex - 1));
+  newAvailBadge.addEventListener('click', () => { hideNewAvailBadge(); goTo(0); });
+
+  document.addEventListener('keydown', (e) => {
+    if (!gate.classList.contains('gone') && !gate.classList.contains('fading')) return;
+    if (e.key === 'ArrowLeft')  goTo(viewIndex + 1);
+    if (e.key === 'ArrowRight') goTo(viewIndex - 1);
+  });
+
+  let touchStartX = 0;
+  document.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].clientX; }, { passive: true });
+  document.addEventListener('touchend',   (e) => {
+    const diff = touchStartX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) < 50) return;
+    if (diff > 0) goTo(viewIndex - 1);
+    else          goTo(viewIndex + 1);
+  }, { passive: true });
+
+  /* ═══════════════════════════════════════════════════════════════════
+     CARREGAR LISTA COMPLETA DE IMAGENS
+  ═══════════════════════════════════════════════════════════════════ */
+  async function loadAllImages() {
+    try {
+      const res  = await fetch(`/api/public/images?token=${encodeURIComponent(TOKEN)}`);
+      const data = await res.json();
+      if (res.ok && Array.isArray(data)) { images = data; return true; }
+    } catch (_) {}
+    return false;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     POLLING — coração do sistema de atualização automática
+
+     Lógica de detecção de mudança:
+       • publicId diferente  → nova imagem (upload ou pin de foto diferente)
+       • mesmo publicId mas pinnedAt diferente → re-pin da mesma foto
+       • ambos iguais → sem mudança real, ignora
+
+     Lógica de exibição:
+       • viewIndex === 0 → usuário vê a mais recente → atualiza imediatamente
+       • viewIndex > 0  → usuário navega → não interrompe, mostra badge clicável
   ═══════════════════════════════════════════════════════════════════ */
   async function fetchLatest() {
     let res, data;
     try {
       res  = await fetch(`/api/public/latest?token=${encodeURIComponent(TOKEN)}`);
       data = await res.json();
-    } catch (_) { return; } // falha de rede — tenta no próximo ciclo
+    } catch (_) { return; }
 
     if (!res.ok) {
-      clearInterval(polling);
       if (res.status === 403) {
+        clearInterval(polling);
         showError('Acesso negado', 'O token informado é inválido ou está ausente.',
           'URL esperada: /public-view.html?token=SEU_TOKEN');
-      } else if (res.status === 404) {
-        showError('Nenhuma imagem', 'Ainda não há fotos enviadas no sistema.', '');
-        startPolling(); // continua tentando
-      } else {
-        showError('Erro', data.error || 'Erro desconhecido.', '');
       }
+      // 404 = sem imagens → continua tentando
       return;
     }
 
-    // Mesma imagem → sem mudança
-    if (data.publicId === currentPublicId) return;
+    // ── Detecção de mudança ────────────────────────────────────────
+    const sameId     = (data.publicId  === livePublicId);
+    const samePinned = ((data.pinnedAt ?? null) === livePinnedAt);
+    if (sameId && samePinned) return; // nada mudou
 
-    const isFirstLoad = currentPublicId === null;
-    currentPublicId   = data.publicId;
+    // ── Atualiza o estado "ao vivo" ────────────────────────────────
+    const isFirstLoad = (livePublicId === null);
+    livePublicId = data.publicId;
+    livePinnedAt = data.pinnedAt ?? null;
 
-    spinner.classList.add('hidden');
-    errorScreen.classList.remove('visible');
-    layerA.style.display = '';
-    layerB.style.display = '';
-    footerTs.textContent = formatTimestamp(data.createdAt);
+    // Recarrega a lista completa (nova foto pode ter entrado)
+    await loadAllImages();
 
-    crossFadeTo(data.url, () => {
-      if (!isFirstLoad) {
-        showBadge();
-        // ── CAMPAINHA ──────────────────────────────────────────────
-        // Toca independente de a aba estar visível ou em segundo plano.
-        // O AudioContext continua ativo enquanto a aba existir na memória.
+    // Localiza o índice da imagem ao vivo na lista atualizada
+    // (pode não ser [0] se foi pinada uma foto antiga)
+    const liveIdx = images.findIndex(img => img.publicId === data.publicId);
+    const targetIdx = liveIdx >= 0 ? liveIdx : 0;
+
+    // Ajusta o array para que a imagem ao vivo apareça no índice 0
+    // Isso garante que viewIndex=0 sempre seja "a foto que deve ser exibida agora"
+    if (liveIdx > 0) {
+      const liveImg = images.splice(liveIdx, 1)[0];
+      images.unshift(liveImg);
+    }
+
+    updateNavButtons();
+
+    if (isFirstLoad) {
+      // Primeira exibição — sem animação especial, sem som
+      viewIndex = 0;
+      spinner.classList.add('hidden');
+      errorScreen.classList.remove('visible');
+      layerA.style.display = '';
+      layerB.style.display = '';
+      renderAt(0);
+      return;
+    }
+
+    // Nova imagem/pin chegou durante uso normal
+    if (viewIndex === 0) {
+      // Estava vendo a foto ao vivo → atualiza automaticamente
+      renderAt(0, () => {
+        showNewBadge();
         playDingDong();
-      }
-    });
+      });
+    } else {
+      // Está navegando → não interrompe, avisa com badge + som
+      showNewAvailBadge();
+      playDingDong();
+    }
   }
 
-  /* ═══════════════════════════════════════════════════════════════════
-     POLLING
-  ═══════════════════════════════════════════════════════════════════ */
   function startPolling() {
     clearInterval(polling);
     polling = setInterval(fetchLatest, POLL_INTERVAL);
   }
 
   /* ═══════════════════════════════════════════════════════════════════
-     BOOTSTRAP — só roda após o clique de ativação
+     BOOTSTRAP — chamado pelo gate (com ou sem som)
   ═══════════════════════════════════════════════════════════════════ */
-  function bootstrap() {
+  async function bootstrap() {
     if (!TOKEN) {
       showError('Token ausente', 'Acesse esta página com o token público na URL.',
         'Exemplo: /public-view.html?token=meu-token-secreto-aqui');
       return;
     }
-    fetchLatest();
+    await loadAllImages();
+    await fetchLatest();
     startPolling();
   }
 </script>

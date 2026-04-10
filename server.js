@@ -14,7 +14,6 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-
 const AUTH_USER = process.env.AUTH_USER || 'admin';
 const AUTH_PASS = process.env.AUTH_PASS || 'admin';
 const PORT      = process.env.PORT      || 3000;
@@ -93,6 +92,91 @@ async function fetchAllImages() {
 // Troque este valor por qualquer string secreta de sua preferência.
 // Quem tiver esse token pode ver a imagem mais recente sem fazer login.
 const PUBLIC_VIEW_TOKEN = process.env.PUBLIC_VIEW_TOKEN || 'photostream';
+
+// ─── Stability AI ───────────────────────────────────────────────────────────────
+//
+// Usamos o endpoint "Structure" do Stable Image v2beta:
+//   POST https://api.stability.ai/v2beta/stable-image/control/structure
+//
+// Por quê "Structure"?
+//   • Recebe uma imagem de entrada + prompt de texto
+//   • Preserva a estrutura/composição da imagem original (bordas, formas)
+//   • Reestiliza/transforma o conteúdo de acordo com o prompt
+//   • Edita uma imagem com texto, sem precisar de máscara ou área específica
+//
+// Autenticação: Bearer Token via header Authorization
+// Formato do body: multipart/form-data
+// Resposta: imagem binária (Accept: image/*) ou JSON com base64
+//
+const STABILITY_API_KEY      = process.env.STABILITY_API_KEY || '';
+const STABILITY_STRUCTURE_URL = 'https://api.stability.ai/v2beta/stable-image/control/structure';
+
+/**
+ * Processa uma imagem com o modelo Structure da Stability AI.
+ * Preserva a composição original e aplica a transformação descrita no prompt.
+ *
+ * @param {Buffer} imageBuffer  - imagem original em memória (JPEG/PNG/WebP)
+ * @param {string} prompt       - instrução de edição em texto
+ * @returns {Promise<Buffer>}   - imagem processada em memória (PNG)
+ */
+async function processWithAI(imageBuffer, prompt) {
+  console.log(`[Stability] Iniciando processamento. Prompt: "${prompt}"`);
+
+  if (!STABILITY_API_KEY) {
+    throw new Error('STABILITY_API_KEY não configurada.');
+  }
+
+  // Monta o FormData com os campos exigidos pela API
+  // A API aceita multipart/form-data — usamos o FormData nativo do Node 18+
+  const form = new FormData();
+
+  // Envia a imagem como Blob (necessário para o FormData nativo do Node 18+)
+  const blob = new Blob([imageBuffer], { type: 'image/png' });
+  form.append('image',         blob,    'image.png');
+  form.append('prompt',        prompt);
+  form.append('output_format', 'png');   // png | jpeg | webp
+  // control_strength: 0.0–1.0 — quanto a estrutura da imagem original é preservada
+  // 0.7 = boa fidelidade à composição original com liberdade criativa para o prompt
+  form.append('control_strength', '0.7');
+
+  const response = await fetch(STABILITY_STRUCTURE_URL, {
+    method:  'POST',
+    headers: {
+      'Authorization': `Bearer ${STABILITY_API_KEY}`,
+      'Accept':        'image/*',  // retorna bytes binários da imagem
+    },
+    body: form,
+  });
+
+  // Conteúdo filtrado por política de segurança da Stability AI
+  if (response.headers.get('finish-reason') === 'CONTENT_FILTERED') {
+    throw new Error('Stability AI: imagem ou prompt bloqueados pela política de conteúdo.');
+  }
+
+  // Erros HTTP tratados individualmente
+  if (response.status === 401 || response.status === 403) {
+    throw new Error('Stability AI: chave de API inválida ou sem permissão.');
+  }
+  if (response.status === 400) {
+    let msg = 'entrada inválida';
+    try { const j = await response.json(); msg = JSON.stringify(j); } catch (_) {}
+    throw new Error(`Stability AI: ${msg}`);
+  }
+  if (response.status === 402) {
+    throw new Error('Stability AI: créditos insuficientes na conta.');
+  }
+  if (!response.ok) {
+    let msg = `erro HTTP ${response.status}`;
+    try { const j = await response.json(); msg = JSON.stringify(j); } catch (_) {}
+    throw new Error(`Stability AI: ${msg}`);
+  }
+
+  // Lê a resposta como buffer binário (imagem PNG)
+  const arrayBuffer = await response.arrayBuffer();
+  const resultBuffer = Buffer.from(arrayBuffer);
+  console.log(`[Stability] Imagem gerada com sucesso (${resultBuffer.length} bytes).`);
+  return resultBuffer;
+}
 
 // ─── App ────────────────────────────────────────────────────────────────────────
 const app = express();
@@ -194,6 +278,20 @@ app.get('/api/download', requireAuth, async (req, res) => {
 // do Cloudinary — enquanto houver um pin ativo.
 let pinnedImage = null; // { url, publicId, createdAt, pinnedAt }
 
+// GET /api/public/autologin?token=...
+// Rota exclusiva para o fluxo public-view → galeria.
+// Troca o PUBLIC_VIEW_TOKEN por uma sessão autenticada válida,
+// sem precisar digitar usuário e senha.
+// Segurança: só funciona com o mesmo token que já protege a public-view.
+app.get('/api/public/autologin', (req, res) => {
+  if (!req.query.token || req.query.token !== PUBLIC_VIEW_TOKEN) {
+    return res.status(403).json({ error: 'Token inválido.' });
+  }
+  const token = createToken();
+  sessions.set(token, { createdAt: Date.now() });
+  res.json({ token });
+});
+
 // POST /api/public/pin  — autenticada, seta a imagem ao vivo
 app.post('/api/public/pin', requireAuth, (req, res) => {
   const { url, publicId, createdAt } = req.body;
@@ -202,6 +300,26 @@ app.post('/api/public/pin', requireAuth, (req, res) => {
   }
   pinnedImage = { url, publicId, createdAt: createdAt || Date.now(), pinnedAt: Date.now() };
   res.json({ success: true, pinnedAt: pinnedImage.pinnedAt });
+});
+
+// GET /api/public/images?token=... — lista completa de imagens para a página pública
+// Mesma proteção de token, sem necessidade de login.
+app.get('/api/public/images', async (req, res) => {
+  if (!req.query.token || req.query.token !== PUBLIC_VIEW_TOKEN) {
+    return res.status(403).json({ error: 'Acesso negado. Token inválido ou ausente.' });
+  }
+  try {
+    const resources = await fetchAllImages();
+    const images    = resources.map((r) => ({
+      url:       r.secure_url,
+      publicId:  r.public_id,
+      createdAt: new Date(r.created_at).getTime(),
+    }));
+    res.json(images);
+  } catch (err) {
+    console.error('GET /api/public/images error:', err);
+    res.status(500).json({ error: 'Erro ao buscar imagens.' });
+  }
 });
 
 // ─── Rota pública ───────────────────────────────────────────────────────────────
@@ -246,6 +364,7 @@ app.get('/api/public/latest', async (req, res) => {
 });
 
 // POST /api/upload
+// Campo opcional no body: "prompt" (string) — se presente, processa com IA antes de salvar.
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 app.post('/api/upload', requireAuth, upload.single('image'), async (req, res) => {
@@ -256,20 +375,60 @@ app.post('/api/upload', requireAuth, upload.single('image'), async (req, res) =>
     return res.status(400).json({ success: false, message: 'Tipo de arquivo não permitido.' });
   }
 
+  const prompt = (req.body.prompt || '').trim();
+  const useAI  = prompt.length > 0;
+
+  // Valida chave Stability AI se o usuário pediu processamento com IA
+  if (useAI && !STABILITY_API_KEY) {
+    return res.status(400).json({
+      success: false,
+      message: 'STABILITY_API_KEY não configurada no servidor. Defina a variável de ambiente ou faça o upload sem prompt.',
+    });
+  }
+
   try {
     const random   = crypto.randomBytes(4).toString('hex');
     const publicId = `photostream/img_${Date.now()}_${random}`;
 
-    const result = await uploadToCloudinary(req.file.buffer, {
+    let finalBuffer = req.file.buffer;
+    let aiProcessed = false;
+
+    // ── Etapa 1: Processamento com IA (opcional) ──────────────────────────────
+    if (useAI) {
+      console.log(`[upload] Iniciando processamento com Stability AI. Prompt: "${prompt}"`);
+      try {
+        finalBuffer = await processWithAI(req.file.buffer, prompt);
+        aiProcessed  = true;
+        console.log('[upload] IA concluída. Enviando para Cloudinary…');
+      } catch (aiErr) {
+        console.error('[upload] Erro na IA:', aiErr.message);
+        return res.status(502).json({
+          success: false,
+          message: `Erro no processamento com IA: ${aiErr.message}`,
+        });
+      }
+    }
+
+    // ── Etapa 2: Upload para Cloudinary ───────────────────────────────────────
+    // eager: aplica f_auto + q_auto para otimização automática de formato e qualidade
+    const result = await uploadToCloudinary(finalBuffer, {
       public_id:     publicId,
       resource_type: 'image',
+      eager: [{ fetch_format: 'auto', quality: 'auto' }],
+      eager_async: false, // processa de forma síncrona para retornar a URL otimizada
     });
 
+    // Prefere a URL eager (otimizada) se disponível, senão usa a URL original
+    const finalUrl = result.eager?.[0]?.secure_url ?? result.secure_url;
+
     res.json({
-      success:  true,
-      url:      result.secure_url,
-      publicId: result.public_id,
-      message:  'Imagem enviada com sucesso!',
+      success:     true,
+      url:         finalUrl,
+      publicId:    result.public_id,
+      aiProcessed,
+      message:     aiProcessed
+        ? '✦ Imagem processada pela IA e enviada com sucesso!'
+        : 'Imagem enviada com sucesso!',
     });
   } catch (err) {
     console.error('POST /api/upload error:', err);
