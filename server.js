@@ -292,6 +292,12 @@ app.get('/api/public/autologin', (req, res) => {
   res.json({ token });
 });
 
+// POST /api/public/unpin — autenticada, limpa o pin manualmente
+app.post('/api/public/unpin', requireAuth, (req, res) => {
+  pinnedImage = null;
+  res.json({ success: true });
+});
+
 // POST /api/public/pin  — autenticada, seta a imagem ao vivo
 app.post('/api/public/pin', requireAuth, (req, res) => {
   const { url, publicId, createdAt } = req.body;
@@ -333,15 +339,22 @@ app.get('/api/public/latest', async (req, res) => {
   }
 
   try {
-    // Se houver imagem pinada pelo operador, retorna ela diretamente
+    // Se houver imagem pinada pelo operador, retorna ela diretamente.
+    // Pin expira automaticamente em 2 horas (segurança contra pins esquecidos).
     if (pinnedImage) {
-      return res.json({
-        url:       pinnedImage.url,
-        publicId:  pinnedImage.publicId,
-        createdAt: pinnedImage.createdAt,
-        pinned:    true,
-        pinnedAt:  pinnedImage.pinnedAt,
-      });
+      const PIN_TTL = 2 * 60 * 60 * 1000; // 2 horas
+      if (Date.now() - pinnedImage.pinnedAt > PIN_TTL) {
+        console.log('[pin] Pin expirado (2h), limpando automaticamente.');
+        pinnedImage = null;
+      } else {
+        return res.json({
+          url:       pinnedImage.url,
+          publicId:  pinnedImage.publicId,
+          createdAt: pinnedImage.createdAt,
+          pinned:    true,
+          pinnedAt:  pinnedImage.pinnedAt,
+        });
+      }
     }
 
     // Fallback: imagem mais recente do Cloudinary
@@ -418,6 +431,12 @@ app.post('/api/upload', requireAuth, upload.single('image'), async (req, res) =>
       public_id:     publicId,
       resource_type: 'image',
     });
+
+    // ── Limpa o pin ativo ─────────────────────────────────────────────────────
+    // Um novo upload é uma intenção explícita de mostrar essa foto ao vivo.
+    // Se houver um pin ativo, ele precisa ser zerado para que a public-view
+    // passe a exibir a nova foto (e não continue presa na foto pinada).
+    pinnedImage = null;
 
     res.json({
       success:     true,
