@@ -22,6 +22,17 @@ let pollingInterval = null;
 let newBadgeTimer   = null;
 let liveToastTimer  = null;
 
+// ── Estado da galeria paginada ─────────────────────────────────────────────────
+// A galeria pagina client-side sobre state.images (já carregado pelo viewer).
+// Isso elimina chamadas extras ao Cloudinary e exibe imagens + vídeos juntos.
+const GALLERY_PAGE_SIZE = 8;
+const gallery = {
+  items:   [],   // subconjunto de state.images atualmente renderizado
+  offset:  0,    // quantos itens já foram exibidos
+  total:   0,    // espelha state.images.length para detectar mudanças
+  loading: false,
+};
+
 /* ═══════════════════════════════════════════════════════════════════════════
    HELPERS
 ═══════════════════════════════════════════════════════════════════════════ */
@@ -49,6 +60,9 @@ function downloadFilename() {
   return `PhotoStream_${date}_${time}.jpg`;
 }
 
+/* Helper — detecta se um item é vídeo */
+function isVideo(item) { return item && item.type === 'video'; }
+
 function triggerDownload(url, filename) {
   // Usa rota proxy do próprio servidor para garantir que o atributo `download`
   // funcione com o nome correto. Links cross-origin (Cloudinary) ignoram o
@@ -74,9 +88,11 @@ async function pinToLive(index) {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({
-        url:       img.url,
-        publicId:  img.publicId,
-        createdAt: img.createdAt,
+        url:          img.url,
+        thumbnailUrl: img.thumbnailUrl || img.url,
+        publicId:     img.publicId,
+        createdAt:    img.createdAt,
+        type:         img.type || 'image',
       }),
     });
     if (r.ok) {
@@ -268,7 +284,7 @@ function startPolling() {
         await loadImages(true);
       }
     } catch (_) {}
-  }, 5000);
+  }, 15000);
 }
 
 function stopPolling() {
@@ -319,88 +335,182 @@ function renderViewer() {
 }
 
 function loadViewerImage() {
+  const item    = state.images[state.currentIndex];
   const img     = document.getElementById('viewImg');
+  const video   = document.getElementById('viewVideo');
   const spinner = document.getElementById('viewImgSpinner');
-  const src     = state.images[state.currentIndex]?.url;
-  if (!src) return;
+  if (!item) return;
 
-  img.style.opacity = '0';
   spinner.classList.remove('hidden');
-  img.onload = () => {
-    spinner.classList.add('hidden');
-    img.style.opacity = '1';
-    img.style.transition = 'opacity .2s';
-  };
-  img.onerror = () => spinner.classList.add('hidden');
-  img.src = src;
+
+  if (isVideo(item)) {
+    img.classList.add('hidden');
+    img.src = '';
+    video.classList.remove('hidden');
+    video.pause();
+    video.src = item.url;
+    video.load();
+    video.onloadedmetadata = () => spinner.classList.add('hidden');
+    video.onerror          = () => spinner.classList.add('hidden');
+  } else {
+    video.classList.add('hidden');
+    video.pause();
+    video.src = '';
+    img.classList.remove('hidden');
+    img.style.opacity = '0';
+    img.onload = () => {
+      spinner.classList.add('hidden');
+      img.style.opacity = '1';
+      img.style.transition = 'opacity .2s';
+    };
+    img.onerror = () => spinner.classList.add('hidden');
+    img.src = item.url;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   GALLERY
+   GALLERY — paginada client-side (8 por vez, botão "Carregar mais")
+   Usa state.images como fonte, sem chamadas extras ao Cloudinary.
+   Exibe imagens e vídeos juntos, na mesma ordem do viewer.
 ═══════════════════════════════════════════════════════════════════════════ */
-function renderGallery() {
+
+/**
+ * Exibe a próxima página da galeria a partir de state.images.
+ * Se isReset=true, limpa o grid e recomeça do início.
+ */
+function loadGalleryPage(isReset = false) {
+  if (gallery.loading) return;
+
   const grid    = document.getElementById('galleryGrid');
   const empty   = document.getElementById('galleryEmpty');
   const count   = document.getElementById('galleryCount');
   const spinner = document.getElementById('gallerySpinner');
+  const loadBtn = document.getElementById('galleryLoadMore');
 
-  spinner.classList.add('hidden');
-  const total = state.images.length;
-  count.textContent = `${total} foto${total !== 1 ? 's' : ''}`;
-
-  if (total === 0) {
-    empty.classList.remove('hidden');
+  if (isReset) {
+    gallery.items  = [];
+    gallery.offset = 0;
+    gallery.total  = state.images.length;
     grid.innerHTML = '';
+    empty.classList.add('hidden');
+    loadBtn.classList.add('hidden');
+  }
+
+  if (state.images.length === 0) {
+    empty.classList.remove('hidden');
+    count.textContent = '0 fotos';
     return;
   }
+
+  gallery.loading = true;
+  spinner.classList.remove('hidden');
+
+  if (!isReset) {
+    loadBtn.disabled = true;
+    loadBtn.innerHTML = '<span class="lm-spinner"></span> Carregando…';
+  }
+
+  const startIdx = gallery.offset;
+  const newItems = state.images.slice(startIdx, startIdx + GALLERY_PAGE_SIZE);
+  gallery.offset += newItems.length;
+  gallery.items   = [...gallery.items, ...newItems];
+  gallery.total   = state.images.length;
+
+  const total = state.images.length;
+  count.textContent = `${gallery.offset} de ${total} foto${total !== 1 ? 's' : ''}`;
+
   empty.classList.add('hidden');
+  appendGalleryItems(grid, newItems, startIdx);
 
-  // Build DOM for new items only (avoid full re-render)
-  const existing = grid.children.length;
-  if (existing === total) return; // nothing changed
+  if (gallery.offset < total) {
+    loadBtn.classList.remove('hidden');
+    loadBtn.disabled = false;
+    loadBtn.textContent = 'Carregar mais';
+  } else {
+    loadBtn.classList.add('hidden');
+  }
 
-  grid.innerHTML = '';
+  gallery.loading = false;
+  spinner.classList.add('hidden');
+}
 
+/**
+ * Cria e insere os cards de galeria no grid.
+ * startIdx: posição global (para numeração correta dos badges).
+ */
+function appendGalleryItems(grid, items, startIdx) {
+  // Para vídeos usamos thumbnailUrl (frame do vídeo gerado pelo Cloudinary).
+  // Para imagens usamos a própria url.
   const observer = new IntersectionObserver((entries) => {
     entries.forEach((entry) => {
-      if (entry.isIntersecting) {
-        const el  = entry.target;
-        const url = el.dataset.src;
-        if (url) {
-          const img = el.querySelector('img') || document.createElement('img');
-          img.alt = '';
-          img.onload = () => { el.querySelector('.gallery-placeholder')?.remove(); };
-          img.src = url;
-          if (!el.contains(img)) el.appendChild(img);
-          el.removeAttribute('data-src');
-          observer.unobserve(el);
-        }
-      }
+      if (!entry.isIntersecting) return;
+      const el   = entry.target;
+      const turl = el.dataset.thumb;
+      if (!turl) return;
+      const img = document.createElement('img');
+      img.alt     = '';
+      img.onload  = () => { el.querySelector('.gallery-placeholder')?.remove(); };
+      img.onerror = () => { el.querySelector('.gallery-placeholder')?.remove(); };
+      img.src = turl;
+      el.appendChild(img);
+      el.removeAttribute('data-thumb');
+      observer.unobserve(el);
     });
-  }, { rootMargin: '100px' });
+  }, { rootMargin: '150px' });
 
-  state.images.forEach((item, idx) => {
-    const div = document.createElement('div');
-    div.className = 'gallery-item';
-    div.dataset.src = item.url;
-    div.dataset.index = idx;
+  items.forEach((item, i) => {
+    const globalIdx = startIdx + i;
+    const div       = document.createElement('div');
+    div.className       = 'gallery-item';
+    div.dataset.thumb   = item.thumbnailUrl || item.url;
+    div.dataset.index   = globalIdx;
 
-    const placeholder = document.createElement('div');
-    placeholder.className = 'gallery-placeholder';
+    // Placeholder spinner
+    const ph = document.createElement('div');
+    ph.className = 'gallery-placeholder';
     const sp = document.createElement('div');
     sp.className = 'spinner';
-    placeholder.appendChild(sp);
-    div.appendChild(placeholder);
+    ph.appendChild(sp);
+    div.appendChild(ph);
 
+    // Badge número
     const num = document.createElement('span');
-    num.className = 'gallery-num';
-    num.textContent = idx + 1;
+    num.className   = 'gallery-num';
+    num.textContent = globalIdx + 1;
     div.appendChild(num);
 
-    div.addEventListener('click', () => openLightbox(idx));
+    // Vídeos: play overlay + badge "VÍD"
+    if (isVideo(item)) {
+      const overlay = document.createElement('div');
+      overlay.className = 'play-overlay';
+      overlay.innerHTML = `<svg viewBox="0 0 24 24" fill="white"><circle cx="12" cy="12" r="11" fill="rgba(0,0,0,0.5)"/><polygon points="10,8 17,12 10,16" fill="white"/></svg>`;
+      div.appendChild(overlay);
+
+      const vbadge = document.createElement('span');
+      vbadge.className   = 'video-badge';
+      vbadge.textContent = '▶ VÍD';
+      div.appendChild(vbadge);
+    }
+
+    // Clique → lightbox
+    div.addEventListener('click', () => {
+      const idx = state.images.findIndex(m => m.url === item.url);
+      openLightbox(idx >= 0 ? idx : 0);
+    });
+
     grid.appendChild(div);
     observer.observe(div);
   });
+}
+
+/**
+ * Chamado pelo polling/loadImages para refletir novas mídias na galeria.
+ * Reinicia o grid se houver mudança no total.
+ */
+function renderGallery() {
+  if (state.images.length !== gallery.total || gallery.items.length === 0) {
+    loadGalleryPage(true);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -414,11 +524,14 @@ function openLightbox(index) {
 }
 
 function closeLightbox() {
-  const lb = document.getElementById('lightbox');
+  const lb    = document.getElementById('lightbox');
+  const video = document.getElementById('lightboxVideo');
   lb.classList.add('hidden');
   document.body.style.overflow = '';
-  const img = document.getElementById('lightboxImg');
-  img.src = '';
+  document.getElementById('lightboxImg').src = '';
+  video.pause();
+  video.src = '';
+  video.classList.add('hidden');
 }
 
 function loadLightboxImage(index) {
@@ -441,20 +554,42 @@ function loadLightboxImage(index) {
   prev.disabled = index >= total - 1;
   next.disabled = index <= 0;
 
-  const url = state.images[index].url;
-  img.style.opacity = '0';
+  const item  = state.images[index];
+  const video = document.getElementById('lightboxVideo');
+  const hint  = document.getElementById('lightboxLiveHint');
+
   spin.classList.remove('hidden');
 
-  img.onload = () => {
-    spin.classList.add('hidden');
-    img.style.opacity = '1';
-    img.style.transition = 'opacity .2s';
-  };
-  img.onerror = () => spin.classList.add('hidden');
-  img.src = url;
+  if (isVideo(item)) {
+    img.classList.add('hidden');
+    img.src = '';
+    if (hint) hint.classList.add('hidden');
+    video.classList.remove('hidden');
+    video.pause();
+    video.src = item.url;
+    video.load();
+    video.onloadedmetadata = () => spin.classList.add('hidden');
+    video.onerror          = () => spin.classList.add('hidden');
+  } else {
+    video.classList.add('hidden');
+    video.pause();
+    video.src = '';
+    if (hint) hint.classList.remove('hidden');
+    img.classList.remove('hidden');
+    img.style.opacity = '0';
+    img.onload = () => {
+      spin.classList.add('hidden');
+      img.style.opacity = '1';
+      img.style.transition = 'opacity .2s';
+    };
+    img.onerror = () => spin.classList.add('hidden');
+    img.src = item.url;
+  }
 
-  const fname  = downloadFilename();
-  const proxyUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(fname)}`;
+  // Download — extensão correta para vídeos
+  const ext      = isVideo(item) ? item.url.split('.').pop().split('?')[0] : 'jpg';
+  const fname    = `PhotoStream_${downloadFilename().replace('PhotoStream_','').replace('.jpg','')}.${ext}`;
+  const proxyUrl = `/api/download?url=${encodeURIComponent(item.url)}&filename=${encodeURIComponent(fname)}`;
   dlLink.href     = proxyUrl;
   dlLink.download = fname;
 }
@@ -462,12 +597,20 @@ function loadLightboxImage(index) {
 /* ═══════════════════════════════════════════════════════════════════════════
    UPLOAD
 ═══════════════════════════════════════════════════════════════════════════ */
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-const MAX_SIZE      = 10 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/avi', 'video/x-msvideo'];
+const ALLOWED_TYPES       = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES];
+const MAX_IMAGE_SIZE      = 10  * 1024 * 1024;   // 10 MB
+const MAX_VIDEO_SIZE      = 200 * 1024 * 1024;   // 200 MB
 
 let selectedFile = null;
 
 function resetUpload() {
+  const pv = document.getElementById('previewVideo');
+  if (pv.src && pv.src.startsWith('blob:')) URL.revokeObjectURL(pv.src);
+  pv.src = '';
+  pv.classList.add('hidden');
+  document.getElementById('previewImg').classList.remove('hidden');
   selectedFile = null;
   document.getElementById('fileInput').value = '';
   document.getElementById('uploadInitial').classList.remove('hidden');
@@ -490,25 +633,37 @@ function handleFileSelect(file) {
   hideFeedback();
   if (!file) return;
 
+  const isVid = ALLOWED_VIDEO_TYPES.includes(file.type);
   if (!ALLOWED_TYPES.includes(file.type)) {
-    showFeedback('Tipo não permitido. Use JPEG, PNG, WebP ou GIF.', 'error');
+    showFeedback('Tipo não permitido. Use JPEG/PNG/WebP/GIF ou MP4/MOV/WebM.', 'error');
     return;
   }
-  if (file.size > MAX_SIZE) {
-    showFeedback('Arquivo muito grande. Máximo 10 MB.', 'error');
+  const maxSize = isVid ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+  if (file.size > maxSize) {
+    showFeedback(`Arquivo muito grande. Máximo ${isVid ? '200' : '10'} MB.`, 'error');
     return;
   }
 
   selectedFile = file;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    document.getElementById('previewImg').src = e.target.result;
-    document.getElementById('previewName').textContent = file.name;
-    document.getElementById('previewSize').textContent = formatBytes(file.size);
-    document.getElementById('uploadInitial').classList.add('hidden');
-    document.getElementById('uploadPreview').classList.remove('hidden');
-  };
-  reader.readAsDataURL(file);
+  const previewImg   = document.getElementById('previewImg');
+  const previewVideo = document.getElementById('previewVideo');
+
+  if (isVid) {
+    previewImg.classList.add('hidden');
+    previewVideo.classList.remove('hidden');
+    previewVideo.src = URL.createObjectURL(file);
+  } else {
+    previewVideo.classList.add('hidden');
+    previewImg.classList.remove('hidden');
+    const reader = new FileReader();
+    reader.onload = (e) => { previewImg.src = e.target.result; };
+    reader.readAsDataURL(file);
+  }
+
+  document.getElementById('previewName').textContent = file.name;
+  document.getElementById('previewSize').textContent = formatBytes(file.size);
+  document.getElementById('uploadInitial').classList.add('hidden');
+  document.getElementById('uploadPreview').classList.remove('hidden');
 }
 
 async function sendUpload() {
@@ -516,8 +671,9 @@ async function sendUpload() {
 
   const btn = document.getElementById('sendUploadBtn');
   btn.disabled    = true;
+  const isVidUpload = selectedFile && ALLOWED_VIDEO_TYPES.includes(selectedFile.type);
   btn.textContent = 'Enviando…';
-  showFeedback('Enviando imagem…', 'loading');
+  showFeedback(isVidUpload ? 'Enviando vídeo…' : 'Enviando imagem…', 'loading');
 
   const form = new FormData();
   form.append('image', selectedFile);
@@ -619,16 +775,22 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ── Gallery ──────────────────────────────────────────────────────────────
-  document.getElementById('galleryRefreshBtn').addEventListener('click', () => loadImages());
+  document.getElementById('galleryRefreshBtn').addEventListener('click', () => {
+    loadGalleryPage(true); // reinicia do zero
+  });
+  document.getElementById('galleryLoadMore').addEventListener('click', () => {
+    loadGalleryPage(false); // carrega próxima página
+  });
 
   // ── Lightbox ─────────────────────────────────────────────────────────────
   const lightbox = document.getElementById('lightbox');
 
   document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
 
-  // Clique na imagem do lightbox → pina ao vivo e exibe toast
+  // Clique na imagem do lightbox → pina ao vivo (apenas imagens)
   document.getElementById('lightboxImg').addEventListener('click', () => {
-    pinToLive(state.lightboxIndex);
+    const item = state.images[state.lightboxIndex];
+    if (!isVideo(item)) pinToLive(state.lightboxIndex);
   });
 
   lightbox.addEventListener('click', (e) => {

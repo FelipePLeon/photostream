@@ -345,14 +345,33 @@ button { cursor: pointer; border: none; background: none; color: inherit; font-f
 }
 .gallery-count { font-family: 'Syne', sans-serif; font-size: 13px; color: var(--text2); }
 
+/* Galeria sempre com 4 colunas — células quadradas e proporcionais à tela */
 .gallery-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
 }
-@media (min-width: 400px) { .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); } }
-@media (min-width: 600px) { .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); } }
-@media (min-width: 900px) { .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); } }
+/* Em telas muito pequenas (<320px) cai para 2 colunas */
+@media (max-width: 319px) { .gallery-grid { grid-template-columns: repeat(2, 1fr); } }
+
+/* Botão "Carregar mais" */
+.gallery-load-more {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; margin-top: 14px; padding: 11px 0;
+  font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px;
+  background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text2); border-radius: var(--radius-sm);
+  cursor: pointer; transition: background .15s, color .15s, border-color .15s;
+}
+.gallery-load-more:hover:not(:disabled) {
+  background: var(--bg2); color: var(--accent2); border-color: var(--accent);
+}
+.gallery-load-more:disabled { opacity: .45; cursor: not-allowed; }
+.gallery-load-more .lm-spinner {
+  width: 14px; height: 14px;
+  border: 2px solid rgba(139,154,248,.3); border-top-color: var(--accent2);
+  border-radius: 50%; animation: spin .6s linear infinite; flex-shrink: 0;
+}
 
 .gallery-item {
   position: relative; aspect-ratio: 1/1; overflow: hidden;
@@ -379,6 +398,59 @@ button { cursor: pointer; border: none; background: none; color: inherit; font-f
   width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
 }
 .gallery-placeholder .spinner { width: 20px; height: 20px; border-width: 2px; }
+
+/* ══════════════════════════════════════════════════════════════════
+   VÍDEO — estilos compartilhados
+══════════════════════════════════════════════════════════════════ */
+
+/* Preview no painel de upload */
+#previewVideo {
+  width: 100%; max-height: 300px; border-radius: var(--radius-sm);
+  background: #000;
+}
+
+/* Viewer */
+.view-video {
+  width: 100%; max-height: 55vh; border-radius: var(--radius-sm);
+  background: #000; display: block;
+}
+
+/* Lightbox */
+.lightbox-video {
+  max-width: calc(100vw - 120px);
+  max-height: calc(100vh - 120px);
+  width: 100%; background: #000;
+  border-radius: var(--radius-sm);
+  outline: none;
+}
+
+/* Controles de vídeo — cor de destaque onde o browser permite */
+video::-webkit-media-controls-panel { background: var(--bg2); }
+
+/* Badge de vídeo na galeria */
+.gallery-item .video-badge {
+  position: absolute; top: 5px; right: 5px;
+  background: rgba(0,0,0,.65); backdrop-filter: blur(4px);
+  color: #fff; font-size: 11px;
+  padding: 3px 6px; border-radius: 20px; line-height: 1;
+}
+
+/* Ícone play overlay no thumbnail da galeria */
+.gallery-item .play-overlay {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.gallery-item .play-overlay svg {
+  width: 36px; height: 36px;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,.7));
+  opacity: .9;
+  transition: opacity .15s;
+}
+.gallery-item:hover .play-overlay svg { opacity: 1; }
+
+/* Lightbox live-hint escondida para vídeos */
+.lightbox-live-hint.hidden { display: none; }
 
 /* ══════════════════════════════════════════════════════════════════
    LIGHTBOX

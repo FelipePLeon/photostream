@@ -19,35 +19,42 @@ const AUTH_PASS = process.env.AUTH_PASS || 'admin';
 const PORT      = process.env.PORT      || 3000;
 
 // ─── In-memory sessions ─────────────────────────────────────────────────────────
-const sessions  = new Map();
-const SESSION_TTL = 24 * 60 * 60 * 1000; // 24 h
+const sessions    = new Map();
+const SESSION_TTL = 24 * 60 * 60 * 1000;
 
-function createToken() {
-  return crypto.randomBytes(32).toString('hex');
+// ─── Media cache ─────────────────────────────────────────────────────────────────
+const CACHE_TTL  = 30_000; // 30 segundos
+const mediaCache = { data: null, fetchedAt: 0 };
+
+function invalidateCache() {
+  mediaCache.data      = null;
+  mediaCache.fetchedAt = 0;
 }
+
+function createToken() { return crypto.randomBytes(32).toString('hex'); }
 
 function isValidToken(token) {
   if (!token || !sessions.has(token)) return false;
   const { createdAt } = sessions.get(token);
-  if (Date.now() - createdAt > SESSION_TTL) {
-    sessions.delete(token);
-    return false;
-  }
+  if (Date.now() - createdAt > SESSION_TTL) { sessions.delete(token); return false; }
   return true;
 }
 
-// ─── Multer (memory only) ───────────────────────────────────────────────────────
+// ─── Multer — aceita imagens E vídeos ──────────────────────────────────────────
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/avi',
+                             'video/x-msvideo', 'video/x-matroska'];
+const ALL_ALLOWED = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES];
+
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits:  { fileSize: 200 * 1024 * 1024 }, // 200 MB para vídeos
 });
 
 // ─── Auth middleware ─────────────────────────────────────────────────────────────
 function requireAuth(req, res, next) {
   const token = req.headers['x-auth-token'];
-  if (!isValidToken(token)) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+  if (!isValidToken(token)) return res.status(401).json({ error: 'Unauthorized' });
   next();
 }
 
@@ -62,120 +69,87 @@ function uploadToCloudinary(buffer, options) {
   });
 }
 
-// ─── Helper: busca todas as imagens sem depender do índice de busca do Cloudinary
-// cloudinary.search tem delay de indexação de até ~15s após o upload.
-// cloudinary.api.resources() consulta o storage diretamente, sem esse delay.
-async function fetchAllImages() {
-  let all        = [];
-  let nextCursor = undefined;
+// ─── Helper: thumbnail URL para vídeos ─────────────────────────────────────────
+// O Cloudinary gera thumbnails de vídeo automaticamente.
+// Trocando /video/upload/ por /video/upload/so_0,w_400/ e a extensão por .jpg
+// obtemos um frame do vídeo como imagem estática, sem chamada extra à API.
+function getThumbUrl(resource) {
+  if (resource.resource_type !== 'video') return resource.secure_url;
+  return resource.secure_url
+    .replace('/video/upload/', '/video/upload/so_0,w_400,c_fill/')
+    .replace(/\.[^.]+$/, '.jpg');
+}
 
+// ─── Helper: normaliza um resource do Cloudinary para o formato da API ─────────
+function normalizeResource(r) {
+  const isVideo = r.resource_type === 'video';
+  return {
+    url:          r.secure_url,
+    thumbnailUrl: isVideo ? getThumbUrl(r) : r.secure_url,
+    publicId:     r.public_id,
+    createdAt:    new Date(r.created_at).getTime(),
+    type:         isVideo ? 'video' : 'image',
+  };
+}
+
+// ─── Helper: busca imagens E vídeos da pasta photostream/ ─────────────────────
+// Usa cache de 30s para minimizar chamadas à Admin API do Cloudinary.
+// Upload invalida o cache imediatamente via invalidateCache().
+async function fetchAllMedia() {
+  if (mediaCache.data && Date.now() - mediaCache.fetchedAt < CACHE_TTL) {
+    return mediaCache.data;
+  }
+
+  let all = [];
+
+  // Busca imagens
+  let cursor;
   do {
-    const opts = {
-      type:        'upload',
-      prefix:      'photostream/',
-      max_results: 500,
-      direction:   -1, // desc por created_at
-    };
-    if (nextCursor) opts.next_cursor = nextCursor;
+    const opts = { type: 'upload', prefix: 'photostream/', max_results: 500, sort_by: 'created_at', direction: 'asc' };
+    if (cursor) opts.next_cursor = cursor;
+    const batch = await cloudinary.api.resources({ ...opts, resource_type: 'image' });
+    all    = all.concat(batch.resources || []);
+    cursor = batch.next_cursor;
+  } while (cursor);
 
-    const batch = await cloudinary.api.resources(opts);
-    all         = all.concat(batch.resources || []);
-    nextCursor  = batch.next_cursor;
-  } while (nextCursor);
+  // Busca vídeos
+  cursor = undefined;
+  do {
+    const opts = { type: 'upload', prefix: 'photostream/', max_results: 500, sort_by: 'created_at', direction: 'asc' };
+    if (cursor) opts.next_cursor = cursor;
+    const batch = await cloudinary.api.resources({ ...opts, resource_type: 'video' });
+    all    = all.concat(batch.resources || []);
+    cursor = batch.next_cursor;
+  } while (cursor);
 
-  // garantir ordenação desc
   all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  mediaCache.data      = all;
+  mediaCache.fetchedAt = Date.now();
   return all;
 }
 
-// ─── Token público (para a rota /api/public/latest) ────────────────────────────
-// Troque este valor por qualquer string secreta de sua preferência.
-// Quem tiver esse token pode ver a imagem mais recente sem fazer login.
+// ─── Token público ──────────────────────────────────────────────────────────────
 const PUBLIC_VIEW_TOKEN = process.env.PUBLIC_VIEW_TOKEN || 'photostream';
 
-// ─── Stability AI ───────────────────────────────────────────────────────────────
-//
-// Usamos o endpoint "Structure" do Stable Image v2beta:
-//   POST https://api.stability.ai/v2beta/stable-image/control/structure
-//
-// Por quê "Structure"?
-//   • Recebe uma imagem de entrada + prompt de texto
-//   • Preserva a estrutura/composição da imagem original (bordas, formas)
-//   • Reestiliza/transforma o conteúdo de acordo com o prompt
-//   • Edita uma imagem com texto, sem precisar de máscara ou área específica
-//
-// Autenticação: Bearer Token via header Authorization
-// Formato do body: multipart/form-data
-// Resposta: imagem binária (Accept: image/*) ou JSON com base64
-//
-const STABILITY_API_KEY      = process.env.STABILITY_API_KEY || '';
+// ─── Stability AI (mantido para reativação futura) ──────────────────────────────
+const STABILITY_API_KEY       = process.env.STABILITY_API_KEY || '';
 const STABILITY_STRUCTURE_URL = 'https://api.stability.ai/v2beta/stable-image/control/structure';
 
-/**
- * Processa uma imagem com o modelo Structure da Stability AI.
- * Preserva a composição original e aplica a transformação descrita no prompt.
- *
- * @param {Buffer} imageBuffer  - imagem original em memória (JPEG/PNG/WebP)
- * @param {string} prompt       - instrução de edição em texto
- * @returns {Promise<Buffer>}   - imagem processada em memória (PNG)
- */
 async function processWithAI(imageBuffer, prompt) {
-  console.log(`[Stability] Iniciando processamento. Prompt: "${prompt}"`);
-
-  if (!STABILITY_API_KEY) {
-    throw new Error('STABILITY_API_KEY não configurada.');
-  }
-
-  // Monta o FormData com os campos exigidos pela API
-  // A API aceita multipart/form-data — usamos o FormData nativo do Node 18+
+  if (!STABILITY_API_KEY) throw new Error('STABILITY_API_KEY não configurada.');
   const form = new FormData();
-
-  // Envia a imagem como Blob (necessário para o FormData nativo do Node 18+)
-  const blob = new Blob([imageBuffer], { type: 'image/png' });
-  form.append('image',         blob,    'image.png');
-  form.append('prompt',        prompt);
-  form.append('output_format', 'png');   // png | jpeg | webp
-  // control_strength: 0.0–1.0 — quanto a estrutura da imagem original é preservada
-  // 0.7 = boa fidelidade à composição original com liberdade criativa para o prompt
+  form.append('image',            new Blob([imageBuffer], { type: 'image/png' }), 'image.png');
+  form.append('prompt',           prompt);
+  form.append('output_format',    'png');
   form.append('control_strength', '0.7');
-
   const response = await fetch(STABILITY_STRUCTURE_URL, {
-    method:  'POST',
-    headers: {
-      'Authorization': `Bearer ${STABILITY_API_KEY}`,
-      'Accept':        'image/*',  // retorna bytes binários da imagem
-    },
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${STABILITY_API_KEY}`, 'Accept': 'image/*' },
     body: form,
   });
-
-  // Conteúdo filtrado por política de segurança da Stability AI
-  if (response.headers.get('finish-reason') === 'CONTENT_FILTERED') {
-    throw new Error('Stability AI: imagem ou prompt bloqueados pela política de conteúdo.');
-  }
-
-  // Erros HTTP tratados individualmente
-  if (response.status === 401 || response.status === 403) {
-    throw new Error('Stability AI: chave de API inválida ou sem permissão.');
-  }
-  if (response.status === 400) {
-    let msg = 'entrada inválida';
-    try { const j = await response.json(); msg = JSON.stringify(j); } catch (_) {}
-    throw new Error(`Stability AI: ${msg}`);
-  }
-  if (response.status === 402) {
-    throw new Error('Stability AI: créditos insuficientes na conta.');
-  }
-  if (!response.ok) {
-    let msg = `erro HTTP ${response.status}`;
-    try { const j = await response.json(); msg = JSON.stringify(j); } catch (_) {}
-    throw new Error(`Stability AI: ${msg}`);
-  }
-
-  // Lê a resposta como buffer binário (imagem PNG)
-  const arrayBuffer = await response.arrayBuffer();
-  const resultBuffer = Buffer.from(arrayBuffer);
-  console.log(`[Stability] Imagem gerada com sucesso (${resultBuffer.length} bytes).`);
-  return resultBuffer;
+  if (!response.ok) throw new Error(`Stability AI: HTTP ${response.status}`);
+  return Buffer.from(await response.arrayBuffer());
 }
 
 // ─── App ────────────────────────────────────────────────────────────────────────
@@ -196,298 +170,207 @@ app.post('/api/login', (req, res) => {
 
 // POST /api/logout
 app.post('/api/logout', requireAuth, (req, res) => {
-  const token = req.headers['x-auth-token'];
-  sessions.delete(token);
+  sessions.delete(req.headers['x-auth-token']);
   res.json({ success: true });
 });
 
 // GET /api/check
-app.get('/api/check', requireAuth, (req, res) => {
-  res.json({ valid: true });
-});
+app.get('/api/check', requireAuth, (req, res) => res.json({ valid: true }));
 
-// GET /api/images
+// GET /api/images — lista completa para viewer/polling (imagens + vídeos)
 app.get('/api/images', requireAuth, async (req, res) => {
   try {
-    const resources = await fetchAllImages();
-    const images    = resources.map((r) => ({
-      url:       r.secure_url,
-      publicId:  r.public_id,
-      createdAt: new Date(r.created_at).getTime(),
-    }));
-    res.json(images);
+    const resources = await fetchAllMedia();
+    res.json(resources.map(normalizeResource));
   } catch (err) {
     console.error('GET /api/images error:', err);
-    res.status(500).json({ error: 'Erro ao buscar imagens' });
+    res.status(500).json({ error: 'Erro ao buscar mídia' });
   }
 });
 
-// GET /api/images/latest — polling endpoint (sem cache de índice)
+// GET /api/images/latest — polling endpoint
+// Usa fetchAllMedia() (com cache) — zero chamadas extras ao Cloudinary.
 app.get('/api/images/latest', requireAuth, async (req, res) => {
   try {
-    const resources = await fetchAllImages();
-    const latest    = resources.length > 0
-      ? new Date(resources[0].created_at).getTime()
-      : 0;
+    const resources = await fetchAllMedia();
+    const latest    = resources.length > 0 ? new Date(resources[0].created_at).getTime() : 0;
     res.json({ latest, count: resources.length });
   } catch (err) {
     console.error('GET /api/images/latest error:', err);
-    res.status(500).json({ error: 'Erro ao verificar imagens' });
+    res.status(500).json({ error: 'Erro ao verificar mídia' });
   }
 });
 
-// GET /api/download?url=... — proxy para forçar nome correto no download (cross-origin)
+// GET /api/images/page?cursor=CURSOR&limit=8
+// ATENÇÃO: para ordenar por data no Cloudinary é OBRIGATÓRIO usar sort_by.
+// O parâmetro direction sozinho só ordena por public_id (ordem alfabética).
+// direction: 'desc' + sort_by: 'created_at' → mais recentes primeiro.
+app.get('/api/images/page', requireAuth, async (req, res) => {
+  try {
+    const limit   = Math.min(parseInt(req.query.limit) || 8, 30);
+    const cursor  = req.query.cursor || undefined;
+    const reqType = req.query.resource_type || 'image';
+
+    const opts = {
+      type:        'upload',
+      prefix:      'photostream/',
+      max_results: limit,
+      sort_by:     'created_at',   // ← ordenar por data de criação
+      direction:   'desc',        // ← mais recentes primeiro
+    };
+    if (cursor) opts.next_cursor = cursor;
+
+    const batch = await cloudinary.api.resources({ ...opts, resource_type: reqType });
+    res.json({
+      images:     (batch.resources || []).map(normalizeResource),
+      nextCursor: batch.next_cursor || null,
+      total:      batch.total_count || 0,
+    });
+  } catch (err) {
+    console.error('GET /api/images/page error:', err);
+    res.status(500).json({ error: 'Erro ao buscar mídia paginada' });
+  }
+});
+
+// GET /api/download?url=...
 app.get('/api/download', requireAuth, async (req, res) => {
   const { url, filename } = req.query;
   if (!url) return res.status(400).json({ error: 'url é obrigatório' });
-
-  // Só permite URLs do Cloudinary
   let parsed;
-  try { parsed = new URL(url); } catch (_) {
-    return res.status(400).json({ error: 'URL inválida' });
-  }
-  if (!parsed.hostname.endsWith('cloudinary.com')) {
-    return res.status(403).json({ error: 'Domínio não permitido' });
-  }
-
+  try { parsed = new URL(url); } catch (_) { return res.status(400).json({ error: 'URL inválida' }); }
+  if (!parsed.hostname.endsWith('cloudinary.com')) return res.status(403).json({ error: 'Domínio não permitido' });
   try {
     const https    = require('https');
-    const safeFile = (filename || 'PhotoStream.jpg').replace(/[^a-zA-Z0-9._-]/g, '_');
-
+    const safeFile = (filename || 'PhotoStream').replace(/[^a-zA-Z0-9._-]/g, '_');
     res.setHeader('Content-Disposition', `attachment; filename="${safeFile}"`);
     res.setHeader('Cache-Control', 'no-store');
-
     https.get(url, (upstream) => {
-      const ct = upstream.headers['content-type'] || 'image/jpeg';
-      res.setHeader('Content-Type', ct);
+      res.setHeader('Content-Type', upstream.headers['content-type'] || 'application/octet-stream');
       upstream.pipe(res);
-      upstream.on('error', (e) => { console.error('proxy stream error:', e); res.end(); });
-    }).on('error', (e) => {
-      console.error('proxy request error:', e);
-      res.status(502).json({ error: 'Erro ao buscar imagem' });
-    });
+      upstream.on('error', () => res.end());
+    }).on('error', () => res.status(502).json({ error: 'Erro ao buscar arquivo' }));
   } catch (err) {
-    console.error('GET /api/download error:', err);
     res.status(500).json({ error: 'Erro interno' });
   }
 });
 
-// ─── Estado "ao vivo" — imagem pinada pelo operador ────────────────────────────
-// Quando o operador clica em uma imagem no lightbox, ela é salva aqui.
-// A rota GET /api/public/latest retorna esta imagem em vez da mais recente
-// do Cloudinary — enquanto houver um pin ativo.
-let pinnedImage = null; // { url, publicId, createdAt, pinnedAt }
+// ─── Estado "ao vivo" ───────────────────────────────────────────────────────────
+let pinnedImage = null;
 
 // GET /api/public/autologin?token=...
-// Rota exclusiva para o fluxo public-view → galeria.
-// Troca o PUBLIC_VIEW_TOKEN por uma sessão autenticada válida,
-// sem precisar digitar usuário e senha.
-// Segurança: só funciona com o mesmo token que já protege a public-view.
 app.get('/api/public/autologin', (req, res) => {
-  if (!req.query.token || req.query.token !== PUBLIC_VIEW_TOKEN) {
+  if (!req.query.token || req.query.token !== PUBLIC_VIEW_TOKEN)
     return res.status(403).json({ error: 'Token inválido.' });
-  }
   const token = createToken();
   sessions.set(token, { createdAt: Date.now() });
   res.json({ token });
 });
 
-// POST /api/public/unpin — autenticada, limpa o pin manualmente
+// POST /api/public/unpin
 app.post('/api/public/unpin', requireAuth, (req, res) => {
   pinnedImage = null;
   res.json({ success: true });
 });
 
-// POST /api/public/pin  — autenticada, seta a imagem ao vivo
+// POST /api/public/pin
 app.post('/api/public/pin', requireAuth, (req, res) => {
-  const { url, publicId, createdAt } = req.body;
-  if (!url || !publicId) {
-    return res.status(400).json({ error: 'url e publicId são obrigatórios' });
-  }
-  pinnedImage = { url, publicId, createdAt: createdAt || Date.now(), pinnedAt: Date.now() };
+  const { url, publicId, createdAt, thumbnailUrl, type } = req.body;
+  if (!url || !publicId) return res.status(400).json({ error: 'url e publicId são obrigatórios' });
+  pinnedImage = {
+    url, publicId, thumbnailUrl: thumbnailUrl || url, type: type || 'image',
+    createdAt: createdAt || Date.now(), pinnedAt: Date.now(),
+  };
   res.json({ success: true, pinnedAt: pinnedImage.pinnedAt });
 });
 
-// GET /api/public/images?token=... — lista completa de imagens para a página pública
-// Mesma proteção de token, sem necessidade de login.
+// GET /api/public/images?token=...
 app.get('/api/public/images', async (req, res) => {
-  if (!req.query.token || req.query.token !== PUBLIC_VIEW_TOKEN) {
-    return res.status(403).json({ error: 'Acesso negado. Token inválido ou ausente.' });
-  }
+  if (!req.query.token || req.query.token !== PUBLIC_VIEW_TOKEN)
+    return res.status(403).json({ error: 'Acesso negado.' });
   try {
-    const resources = await fetchAllImages();
-    const images    = resources.map((r) => ({
-      url:       r.secure_url,
-      publicId:  r.public_id,
-      createdAt: new Date(r.created_at).getTime(),
-    }));
-    res.json(images);
+    const resources = await fetchAllMedia();
+    res.json(resources.map(normalizeResource));
   } catch (err) {
     console.error('GET /api/public/images error:', err);
-    res.status(500).json({ error: 'Erro ao buscar imagens.' });
+    res.status(500).json({ error: 'Erro ao buscar mídia.' });
   }
 });
 
-// ─── Rota pública ───────────────────────────────────────────────────────────────
 // GET /api/public/latest?token=...
-// Não exige login. Retorna { url, publicId, createdAt } da imagem mais recente.
-// Protegida pelo PUBLIC_VIEW_TOKEN enviado via query string.
 app.get('/api/public/latest', async (req, res) => {
-  // 1. Valida o token público
-  if (!req.query.token || req.query.token !== PUBLIC_VIEW_TOKEN) {
-    return res.status(403).json({ error: 'Acesso negado. Token inválido ou ausente.' });
-  }
-
+  if (!req.query.token || req.query.token !== PUBLIC_VIEW_TOKEN)
+    return res.status(403).json({ error: 'Acesso negado.' });
   try {
-    // Se houver imagem pinada pelo operador, retorna ela diretamente.
-    // Pin expira automaticamente em 2 horas (segurança contra pins esquecidos).
     if (pinnedImage) {
-      const PIN_TTL = 2 * 60 * 60 * 1000; // 2 horas
+      const PIN_TTL = 2 * 60 * 60 * 1000;
       if (Date.now() - pinnedImage.pinnedAt > PIN_TTL) {
-        console.log('[pin] Pin expirado (2h), limpando automaticamente.');
         pinnedImage = null;
       } else {
         return res.json({
-          url:       pinnedImage.url,
-          publicId:  pinnedImage.publicId,
-          createdAt: pinnedImage.createdAt,
-          pinned:    true,
-          pinnedAt:  pinnedImage.pinnedAt,
+          url:          pinnedImage.url,
+          thumbnailUrl: pinnedImage.thumbnailUrl,
+          publicId:     pinnedImage.publicId,
+          createdAt:    pinnedImage.createdAt,
+          type:         pinnedImage.type,
+          pinned:       true,
+          pinnedAt:     pinnedImage.pinnedAt,
         });
       }
     }
-
-    // Fallback: imagem mais recente do Cloudinary
-    const resources = await fetchAllImages();
-
-    if (resources.length === 0) {
-      return res.status(404).json({ error: 'Nenhuma imagem disponível.' });
-    }
-
-    const r = resources[0];
-    res.json({
-      url:       r.secure_url,
-      publicId:  r.public_id,
-      createdAt: new Date(r.created_at).getTime(),
-    });
+    const resources = await fetchAllMedia();
+    if (resources.length === 0) return res.status(404).json({ error: 'Nenhuma mídia disponível.' });
+    res.json(normalizeResource(resources[0]));
   } catch (err) {
     console.error('GET /api/public/latest error:', err);
-    res.status(500).json({ error: 'Erro ao buscar imagem.' });
+    res.status(500).json({ error: 'Erro ao buscar mídia.' });
   }
 });
 
-// POST /api/upload
-// Campo opcional no body: "prompt" (string) — se presente, processa com IA antes de salvar.
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-
+// POST /api/upload — aceita imagens e vídeos
 app.post('/api/upload', requireAuth, upload.single('image'), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ success: false, message: 'Nenhum arquivo enviado.' });
-  }
-  if (!ALLOWED_TYPES.includes(req.file.mimetype)) {
-    return res.status(400).json({ success: false, message: 'Tipo de arquivo não permitido.' });
-  }
+  if (!req.file) return res.status(400).json({ success: false, message: 'Nenhum arquivo enviado.' });
+  if (!ALL_ALLOWED.includes(req.file.mimetype))
+    return res.status(400).json({ success: false, message: 'Tipo não permitido.' });
 
-  const prompt = (req.body.prompt || '').trim();
-  const useAI  = prompt.length > 0;
-
-  // Valida chave Stability AI se o usuário pediu processamento com IA
-  if (useAI && !STABILITY_API_KEY) {
-    return res.status(400).json({
-      success: false,
-      message: 'STABILITY_API_KEY não configurada no servidor. Defina a variável de ambiente ou faça o upload sem prompt.',
-    });
-  }
+  const isVideo  = ALLOWED_VIDEO_TYPES.includes(req.file.mimetype);
+  const random   = crypto.randomBytes(4).toString('hex');
+  const publicId = `photostream/media_${Date.now()}_${random}`;
 
   try {
-    const random   = crypto.randomBytes(4).toString('hex');
-    const publicId = `photostream/img_${Date.now()}_${random}`;
-
-    let finalBuffer = req.file.buffer;
-    let aiProcessed = false;
-
-    // ── Etapa 1: Processamento com IA (opcional) ──────────────────────────────
-    if (useAI) {
-      console.log(`[upload] Iniciando processamento com Stability AI. Prompt: "${prompt}"`);
-      try {
-        finalBuffer = await processWithAI(req.file.buffer, prompt);
-        aiProcessed  = true;
-        console.log('[upload] IA concluída. Enviando para Cloudinary…');
-      } catch (aiErr) {
-        console.error('[upload] Erro na IA:', aiErr.message);
-        return res.status(502).json({
-          success: false,
-          message: `Erro no processamento com IA: ${aiErr.message}`,
-        });
-      }
-    }
-
-    // ── Etapa 2: Upload para Cloudinary ───────────────────────────────────────
-    // Sem eager transforms: evita o "filtro azul" em HTTPS no Render,
-    // causado por URLs eager com f_auto que podem retornar AVIF/WebP
-    // com metadados de cor corrompidos antes do processamento terminar.
-    // O Cloudinary já otimiza automaticamente na entrega via CDN.
-    const result = await uploadToCloudinary(finalBuffer, {
+    const result = await uploadToCloudinary(req.file.buffer, {
       public_id:     publicId,
-      resource_type: 'image',
+      resource_type: isVideo ? 'video' : 'image',
     });
 
-    // ── Limpa o pin ativo ─────────────────────────────────────────────────────
-    // Um novo upload é uma intenção explícita de mostrar essa foto ao vivo.
-    // Se houver um pin ativo, ele precisa ser zerado para que a public-view
-    // passe a exibir a nova foto (e não continue presa na foto pinada).
+    // Novo upload: limpa pin ativo e invalida o cache para exposição imediata
     pinnedImage = null;
+    invalidateCache();
 
-    res.json({
-      success:     true,
-      url:         result.secure_url,
-      publicId:    result.public_id,
-      aiProcessed,
-      message:     aiProcessed
-        ? '✦ Imagem processada pela IA e enviada com sucesso!'
-        : 'Imagem enviada com sucesso!',
-    });
+    const r = normalizeResource({ ...result, resource_type: isVideo ? 'video' : 'image' });
+    res.json({ success: true, ...r, message: isVideo ? 'Vídeo enviado com sucesso!' : 'Imagem enviada com sucesso!' });
   } catch (err) {
     console.error('POST /api/upload error:', err);
-    res.status(500).json({ success: false, message: 'Erro ao fazer upload da imagem.' });
+    res.status(500).json({ success: false, message: 'Erro ao fazer upload.' });
   }
 });
 
-// ─── Health check / ping (mantém o serviço acordado no Render free tier) ────────
-// O Render dorme serviços gratuitos após 15 min de inatividade.
-// Esta rota leve é usada pelo auto-ping interno E por serviços externos
-// como UptimeRobot para manter o servidor sempre ativo.
-app.get('/api/ping', (req, res) => {
-  res.json({ ok: true, ts: Date.now() });
-});
+// GET /api/ping
+app.get('/api/ping', (req, res) => res.json({ ok: true, ts: Date.now() }));
 
 // ─── Start ───────────────────────────────────────────────────────────────────────
 const server = app.listen(PORT, () => {
   console.log(`PhotoStream running on http://localhost:${PORT}`);
 });
 
-// Render free tier fecha conexões ociosas após ~75s.
-// Aumentar keepAliveTimeout e headersTimeout evita "Connection reset" intermitente.
-server.keepAliveTimeout = 120_000;  // 120s
-server.headersTimeout   = 125_000;  // deve ser maior que keepAliveTimeout
+server.keepAliveTimeout = 120_000;
+server.headersTimeout   = 125_000;
 
-// ─── Auto-ping interno ────────────────────────────────────────────────────────────
-// Pinga o próprio servidor a cada 10 minutos para evitar o sleep do Render.
-// Só ativa em produção (quando PORT vem do ambiente, não localhost).
 if (process.env.PORT) {
   const SELF_URL      = process.env.RENDER_EXTERNAL_URL
     ? `${process.env.RENDER_EXTERNAL_URL}/api/ping`
     : `http://localhost:${PORT}/api/ping`;
-  const PING_INTERVAL = 10 * 60 * 1000; // 10 minutos
-
+  const PING_INTERVAL = 10 * 60 * 1000;
   setInterval(async () => {
-    try {
-      await fetch(SELF_URL);
-      console.log(`[ping] self-ping ok → ${SELF_URL}`);
-    } catch (e) {
-      console.warn(`[ping] self-ping falhou: ${e.message}`);
-    }
+    try { await fetch(SELF_URL); } catch (_) {}
   }, PING_INTERVAL);
-
-  console.log(`[ping] auto-ping ativo a cada 10min → ${SELF_URL}`);
 }

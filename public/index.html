@@ -95,15 +95,16 @@
           <!-- Estado inicial -->
           <div id="uploadInitial" class="upload-initial">
             <div class="upload-icon">📷</div>
-            <p class="upload-title">Enviar foto</p>
-            <p class="upload-hint">Arraste uma imagem ou clique para selecionar</p>
-            <p class="upload-formats">JPEG · PNG · WebP · GIF · até 10 MB</p>
-            <button id="chooseFileBtn" class="btn-primary" type="button">Escolher imagem</button>
+            <p class="upload-title">Enviar foto ou vídeo</p>
+            <p class="upload-hint">Arraste um arquivo ou clique para selecionar</p>
+            <p class="upload-formats">Imagens: JPEG · PNG · WebP · GIF &nbsp;|&nbsp; Vídeos: MP4 · MOV · WebM</p>
+            <button id="chooseFileBtn" class="btn-primary" type="button">Escolher arquivo</button>
           </div>
 
           <!-- Preview -->
           <div id="uploadPreview" class="upload-preview hidden">
             <img id="previewImg" src="" alt="Preview" />
+            <video id="previewVideo" class="hidden" controls preload="metadata"></video>
             <div class="preview-info">
               <span id="previewName" class="preview-name"></span>
               <span id="previewSize" class="preview-size"></span>
@@ -142,7 +143,7 @@
         </div>
 
         <p id="uploadFeedback" class="upload-feedback hidden"></p>
-        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/gif" hidden />
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm,video/avi" hidden />
       </section>
 
       <!-- ── PAINEL: VISUALIZAR ─────────────────────────────────── -->
@@ -159,7 +160,8 @@
           <div id="viewImgWrap" class="view-img-wrap hidden">
             <div id="viewImgSpinner" class="spinner img-spinner hidden"></div>
             <img id="viewImg" src="" alt="Imagem atual" />
-            <div id="newBadge" class="new-badge hidden">✦ Nova imagem!</div>
+            <video id="viewVideo" class="view-video hidden" controls preload="none"></video>
+            <div id="newBadge" class="new-badge hidden">✦ Nova mídia!</div>
           </div>
         </div>
 
@@ -186,6 +188,9 @@
         <div id="gallerySpinner" class="spinner hidden"></div>
         <div id="galleryEmpty" class="empty-msg hidden">Nenhuma imagem ainda.</div>
         <div id="galleryGrid" class="gallery-grid"></div>
+        <button id="galleryLoadMore" class="gallery-load-more hidden" type="button">
+          Carregar mais
+        </button>
       </section>
 
     </main>
@@ -203,7 +208,8 @@
     <div class="lightbox-body">
       <div id="lightboxSpinner" class="spinner lightbox-spinner hidden"></div>
       <img id="lightboxImg" src="" alt="Foto ampliada" />
-      <div class="lightbox-live-hint">Clique na imagem para enviar ao vivo</div>
+      <video id="lightboxVideo" class="lightbox-video hidden" controls preload="none"></video>
+      <div class="lightbox-live-hint" id="lightboxLiveHint">Clique na imagem para enviar ao vivo</div>
     </div>
 
     <div class="lightbox-footer">
